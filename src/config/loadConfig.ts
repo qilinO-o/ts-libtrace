@@ -1,4 +1,4 @@
-import * as path from "node:path";
+import path from "node:path";
 import { getDefaultInstrumenterOptions } from "./defaults.js";
 import { CliOptions, ToolConfig } from "./types.js";
 

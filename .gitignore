@@ -4,5 +4,6 @@ __pycache__
 target
 TS_libs
 codex_tests
+dist
 AGENTS.md
 DEV.md

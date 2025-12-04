@@ -1,4 +1,10 @@
-import { LibtraceConfig } from "./types.js";
+import { InstrumenterOptions } from "./types.js";
 
-export const defaultConfig: LibtraceConfig = {};
+export const DEFAULT_RUNTIME_MODULE = "libtrace/runtime";
 
+export const getDefaultInstrumenterOptions = (projectRoot: string): InstrumenterOptions => ({
+  projectRoot,
+  srcDir: "src",
+  outDir: ".instrumented",
+  runtimeModuleSpecifier: DEFAULT_RUNTIME_MODULE
+});

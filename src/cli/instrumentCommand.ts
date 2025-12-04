@@ -1,12 +1,6 @@
 import { Command } from "commander";
-
-export interface InstrumentCommandOptions {
-  project: string;
-  srcDir: string;
-  outDir: string;
-  include: string[];
-  exclude: string[];
-}
+import { buildToolConfig } from "../config/loadConfig.js";
+import { CliOptions } from "../config/types.js";
 
 export const registerInstrumentCommand = (program: Command): Command => {
   return program
@@ -17,11 +11,8 @@ export const registerInstrumentCommand = (program: Command): Command => {
     .option("--outDir <dir>", "Output directory for instrumented code", ".instrumented")
     .option("--include <pattern...>", "Glob patterns to include", [])
     .option("--exclude <pattern...>", "Glob patterns to exclude", [])
-    .action((options: InstrumentCommandOptions) => {
-      const { project, srcDir, outDir, include, exclude } = options;
-      console.log(
-        "instrument options:",
-        JSON.stringify({ project, srcDir, outDir, include, exclude }, null, 2)
-      );
+    .action((options: CliOptions) => {
+      const toolConfig = buildToolConfig(process.cwd(), options);
+      console.log("instrument tool config:", JSON.stringify(toolConfig, null, 2));
     });
 };

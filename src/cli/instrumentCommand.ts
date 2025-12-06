@@ -36,6 +36,7 @@ export const registerInstrumentCommand = (program: Command): Command => {
       console.log("instrument tool config:", JSON.stringify(toolConfig, null, 2));
 
       const parsed = loadTsConfig(toolConfig.tsconfigPath, path.dirname(toolConfig.tsconfigPath));
+      const resolvedOutDir = path.resolve(toolConfig.projectRoot, toolConfig.outDir);
 
       const instrumenterOptions = {
         projectRoot: toolConfig.projectRoot,
@@ -50,7 +51,7 @@ export const registerInstrumentCommand = (program: Command): Command => {
         rootNames: parsed.fileNames,
         options: {
           ...parsed.options,
-          outDir: toolConfig.outDir
+          outDir: resolvedOutDir
         }
       });
 

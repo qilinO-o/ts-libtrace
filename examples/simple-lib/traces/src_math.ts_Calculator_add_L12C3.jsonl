@@ -1,0 +1,2 @@
+{"json":{"type":"enter","fnId":"src/math.ts#Calculator#add#L12C3","callId":"4","time":1764938931102,"thisArg":{"base":10},"args":[5],"env":{}}}
+{"json":{"type":"exit","fnId":"src/math.ts#Calculator#add#L12C3","callId":"4","time":1764938931102,"outcome":{"kind":"return","value":15,"error":null}},"meta":{"values":{"outcome.error":["undefined"]},"v":1}}

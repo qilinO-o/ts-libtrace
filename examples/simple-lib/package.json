@@ -1,0 +1,5 @@
+{
+  "name": "simple-lib-example",
+  "private": true,
+  "type": "module"
+}

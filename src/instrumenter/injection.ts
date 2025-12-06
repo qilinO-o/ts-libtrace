@@ -109,6 +109,19 @@ export function instrumentFunctionBody(
       ? factory.createThis()
       : factory.createIdentifier("undefined");
 
+  const argsExpression = ts.isArrowFunction(node)
+    ? factory.createArrayLiteralExpression(
+        node.parameters.map((param) =>
+          ts.isIdentifier(param.name) ? factory.createIdentifier(param.name.text) : factory.createNull()
+        ),
+        false
+      )
+    : factory.createCallExpression(
+        factory.createPropertyAccessExpression(factory.createIdentifier("Array"), "from"),
+        undefined,
+        [factory.createIdentifier("arguments")]
+      );
+
   const callIdConst = createConst(
     factory,
     "__callId",
@@ -120,14 +133,7 @@ export function instrumentFunctionBody(
         factory.createObjectLiteralExpression(
           [
             factory.createPropertyAssignment("thisArg", thisArgExpr),
-            factory.createPropertyAssignment(
-              "args",
-              factory.createCallExpression(
-                factory.createPropertyAccessExpression(factory.createIdentifier("Array"), "from"),
-                undefined,
-                [factory.createIdentifier("arguments")]
-              )
-            ),
+            factory.createPropertyAssignment("args", argsExpression),
             factory.createPropertyAssignment("env", factory.createObjectLiteralExpression([], true))
           ],
           true

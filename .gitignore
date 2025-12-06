@@ -5,5 +5,7 @@ target
 TS_libs
 codex_tests
 dist
+examples/simple-lib/.instrumented
+examples/simple-lib/traces
 AGENTS.md
 DEV.md

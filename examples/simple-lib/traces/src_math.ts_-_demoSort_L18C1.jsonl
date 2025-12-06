@@ -1,2 +1,2 @@
-{"json":{"type":"enter","fnId":"src/math.ts#-#demoSort#L18C1","callId":"5","time":1764938931102,"thisArg":null,"args":[[1,2,3]],"env":{}},"meta":{"values":{"thisArg":["undefined"]},"v":1}}
-{"json":{"type":"exit","fnId":"src/math.ts#-#demoSort#L18C1","callId":"5","time":1764938931102,"outcome":{"kind":"return","value":[1,2,3],"error":null}},"meta":{"values":{"outcome.error":["undefined"]},"v":1}}
+{"json":{"type":"enter","fnId":"src/math.ts#-#demoSort#L18C1","callId":"5","time":1765021435241,"thisArg":null,"args":[[1,2,3]],"env":{}},"meta":{"values":{"thisArg":["undefined"]},"v":1}}
+{"json":{"type":"exit","fnId":"src/math.ts#-#demoSort#L18C1","callId":"5","time":1765021435241,"outcome":{"kind":"return","value":[1,2,3],"error":null}},"meta":{"values":{"outcome.error":["undefined"]},"v":1}}

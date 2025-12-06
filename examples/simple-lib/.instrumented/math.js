@@ -48,7 +48,7 @@ export const mul = (a, b) => {
 export class Calculator {
     constructor(base) {
         this.base = base;
-        const __fnId = "src/math.ts#Calculator#<anonymous>#L10C3";
+        const __fnId = "src/math.ts#Calculator#constructor#L10C3";
         const __callId = __trace.enter(__fnId, {
             thisArg: this,
             args: Array.from(arguments),

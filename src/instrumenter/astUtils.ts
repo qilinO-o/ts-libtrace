@@ -16,6 +16,10 @@ export const getFunctionName = (node: ts.FunctionLikeDeclarationBase): string | 
     }
   }
 
+  if (ts.isConstructorDeclaration(node)) {
+    return "constructor";
+  }
+
   return undefined;
 };
 

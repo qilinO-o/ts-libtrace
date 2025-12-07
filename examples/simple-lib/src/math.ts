@@ -18,3 +18,9 @@ export class Calculator {
 export function demoSort(xs: number[]) {
   return xs.sort((a, b) => a - b); // callback should NOT be instrumented
 }
+
+export function chained(a: number, b: number) {
+  const sum = add(a, b);
+  const product = mul(a, b);
+  return sum + product;
+}

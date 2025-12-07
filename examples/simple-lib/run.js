@@ -19,6 +19,7 @@ const calc = new math.Calculator(10);
 calc.add(5);
 
 math.demoSort([3, 1, 2]);
+math.chained(2, 3);
 
 await flush();
 

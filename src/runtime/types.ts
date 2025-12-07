@@ -18,4 +18,11 @@ export interface ExitEvent {
   };
 }
 
-export type TraceEvent = EnterEvent | ExitEvent;
+export interface CallEvent {
+  type: "call";
+  fnId: string;
+  callId: string;
+  childCallIds: string[];
+}
+
+export type TraceEvent = EnterEvent | ExitEvent | CallEvent;

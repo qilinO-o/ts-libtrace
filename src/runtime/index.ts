@@ -12,7 +12,6 @@ export const __trace = {
       type: "enter",
       fnId,
       callId,
-      time: Date.now(),
       thisArg: data.thisArg,
       args: data.args,
       env: data.env
@@ -30,7 +29,6 @@ export const __trace = {
       type: "exit",
       fnId,
       callId,
-      time: Date.now(),
       outcome: {
         kind: outcome.kind,
         value: outcome.value,

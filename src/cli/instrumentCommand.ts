@@ -31,9 +31,12 @@ export const registerInstrumentCommand = (program: Command): Command => {
     .option("--outDir <dir>", "Output directory for instrumented code", ".instrumented")
     .option("--include <pattern...>", "Glob patterns to include", undefined)
     .option("--exclude <pattern...>", "Glob patterns to exclude", undefined)
+    .option("--verbose", "Print debugging information", false)
     .action((options: CliOptions) => {
       const toolConfig = buildToolConfig(process.cwd(), options);
-      console.log("instrument tool config:", JSON.stringify(toolConfig, null, 2));
+      if ((options as CliOptions & { verbose?: boolean }).verbose) {
+        console.log("instrument tool config:", JSON.stringify(toolConfig, null, 2));
+      }
 
       const parsed = loadTsConfig(toolConfig.tsconfigPath, path.dirname(toolConfig.tsconfigPath));
       const resolvedOutDir = path.resolve(toolConfig.projectRoot, toolConfig.outDir);
@@ -82,7 +85,9 @@ export const registerInstrumentCommand = (program: Command): Command => {
           return;
         }
       }
-
-      console.log(`Instrumentation complete. Output written to ${toolConfig.outDir}`);
+      
+      if ((options as CliOptions & { verbose?: boolean }).verbose) {
+        console.log(`Instrumentation complete. Output written to ${toolConfig.outDir}`);
+      }
     });
 };

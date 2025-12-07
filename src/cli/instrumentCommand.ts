@@ -29,8 +29,8 @@ export const registerInstrumentCommand = (program: Command): Command => {
     .option("--project <path>", "Path to tsconfig.json", "tsconfig.json")
     .option("--srcDir <dir>", "Source directory to instrument", "src")
     .option("--outDir <dir>", "Output directory for instrumented code", ".instrumented")
-    .option("--include <pattern...>", "Glob patterns to include", [])
-    .option("--exclude <pattern...>", "Glob patterns to exclude", [])
+    .option("--include <pattern...>", "Glob patterns to include", undefined)
+    .option("--exclude <pattern...>", "Glob patterns to exclude", undefined)
     .action((options: CliOptions) => {
       const toolConfig = buildToolConfig(process.cwd(), options);
       console.log("instrument tool config:", JSON.stringify(toolConfig, null, 2));

@@ -4,29 +4,11 @@ import { isTopLevelTraceTarget, SelectorContext } from "./functionSelector.js";
 import { buildFunctionIdStruct } from "./functionId.js";
 import { ensureTraceImport, instrumentFunctionBody } from "./injection.js";
 
-const shouldProcessFile = (fileName: string, options: InstrumenterOptions): boolean => {
-  if (options.include && options.include.length > 0) {
-    const isIncluded = options.include.some((pattern) => fileName.includes(pattern));
-    if (!isIncluded) return false;
-  }
-
-  if (options.exclude && options.exclude.length > 0) {
-    const isExcluded = options.exclude.some((pattern) => fileName.includes(pattern));
-    if (isExcluded) return false;
-  }
-
-  return true;
-};
-
 export function transformSourceFile(
   context: ts.TransformationContext,
   sourceFile: ts.SourceFile,
   options: InstrumenterOptions
 ): ts.SourceFile {
-  if (!shouldProcessFile(sourceFile.fileName, options)) {
-    return sourceFile;
-  }
-
   const factory = context.factory;
   const selectorCtx: SelectorContext = { sourceFile };
 

@@ -1,5 +1,24 @@
-import { writeEvent } from "./traceWriter.js";
+import { writeEvent, flush } from "./traceWriter.js";
 import { CallEvent, EnterEvent, ExitEvent } from "./types.js";
+
+let hasRegistered = false;
+
+function registerFlushHooks() {
+  if (hasRegistered) return;
+  hasRegistered = true;
+
+  const doFlush = async () => {
+    try {
+      await flush();
+    } catch (e) {
+      console.error(e)
+    } 
+  };
+
+  process.on("beforeExit", () => {
+    void doFlush();
+  });
+}
 
 let nextCallId = 1;
 const callStack: string[] = [];
@@ -80,3 +99,5 @@ export const __trace = {
     writeEvent(event);
   }
 };
+
+registerFlushHooks();

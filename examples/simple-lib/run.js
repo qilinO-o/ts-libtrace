@@ -1,6 +1,5 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { flush } from "../../dist/runtime/traceWriter.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,5 +23,3 @@ calc.add(5);
 
 math.demoSort([3, 1, 2]);
 math.chained(2, 3);
-
-await flush();

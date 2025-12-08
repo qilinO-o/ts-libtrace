@@ -6,6 +6,24 @@ export const mul = (a: number, b: number) => {
   return a * b;
 };
 
+const OFFSET = 10;
+const config = { factor: 2 };
+var GLOBALCOUNTER = 0;
+
+export function addWithOffset(x: number) {
+  return x + OFFSET;
+}
+
+export function multiplyWithConfig(x: number) {
+  return x * config.factor;
+}
+
+export function nextCounter() {
+  const ret = GLOBALCOUNTER;
+  GLOBALCOUNTER += 1;
+  return ret;
+}
+
 export class Calculator {
   constructor(private base: number) {}
 

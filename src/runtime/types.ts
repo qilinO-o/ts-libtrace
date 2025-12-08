@@ -16,6 +16,7 @@ export interface ExitEvent {
     value?: any;
     error?: any;
   };
+  env: any;
 }
 
 export interface CallEvent {

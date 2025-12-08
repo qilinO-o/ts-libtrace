@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { FunctionIdStruct, functionIdToString } from "./functionId.js";
+import { collectFreeVariableNames } from "./envAnalyzer.js";
 
 const createConst = (factory: ts.NodeFactory, name: string, initializer: ts.Expression): ts.Statement =>
   factory.createVariableStatement(
@@ -13,7 +14,8 @@ const createConst = (factory: ts.NodeFactory, name: string, initializer: ts.Expr
 const createExitCall = (
   factory: ts.NodeFactory,
   kind: "return" | "throw",
-  valueIdentifier: string
+  valueIdentifier: string,
+  envExpression: ts.ObjectLiteralExpression
 ): ts.Statement => {
   const outcomeProps =
     kind === "return"
@@ -33,7 +35,8 @@ const createExitCall = (
       [
         factory.createIdentifier("__fnId"),
         factory.createIdentifier("__callId"),
-        factory.createObjectLiteralExpression(outcomeProps, true)
+        factory.createObjectLiteralExpression(outcomeProps, true),
+        envExpression
       ]
     )
   );
@@ -93,6 +96,14 @@ export function instrumentFunctionBody(
   fnIdStruct: FunctionIdStruct
 ): ts.FunctionLikeDeclarationBase {
   const fnIdString = functionIdToString(fnIdStruct);
+  const freeVarNames = collectFreeVariableNames(node);
+  const envExpression =
+    freeVarNames.length === 0
+      ? factory.createObjectLiteralExpression([], true)
+      : factory.createObjectLiteralExpression(
+          freeVarNames.map((name) => factory.createShorthandPropertyAssignment(name)),
+          true
+        );
 
   const body = node.body;
   if (!body) {
@@ -134,7 +145,7 @@ export function instrumentFunctionBody(
           [
             factory.createPropertyAssignment("thisArg", thisArgExpr),
             factory.createPropertyAssignment("args", argsExpression),
-            factory.createPropertyAssignment("env", factory.createObjectLiteralExpression([], true))
+            factory.createPropertyAssignment("env", envExpression)
           ],
           true
         )
@@ -148,7 +159,7 @@ export function instrumentFunctionBody(
     if (ts.isReturnStatement(stmt)) {
       const initializer = stmt.expression ?? factory.createVoidZero();
       const retConst = createConst(factory, "__ret", initializer);
-      const exitStmt = createExitCall(factory, "return", "__ret");
+      const exitStmt = createExitCall(factory, "return", "__ret", envExpression);
       const returnStmt = factory.createReturnStatement(factory.createIdentifier("__ret"));
 
       rewrittenStatements.push(retConst, exitStmt, returnStmt);
@@ -161,7 +172,7 @@ export function instrumentFunctionBody(
     factory.createVariableDeclaration(factory.createIdentifier("__err")),
     factory.createBlock(
       [
-        createExitCall(factory, "throw", "__err"),
+        createExitCall(factory, "throw", "__err", envExpression),
         factory.createThrowStatement(factory.createIdentifier("__err"))
       ],
       true

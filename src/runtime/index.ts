@@ -52,7 +52,8 @@ export const __trace = {
   exit(
     fnId: string,
     callId: string,
-    outcome: { kind: "return" | "throw"; value?: any; error?: any }
+    outcome: { kind: "return" | "throw"; value?: any; error?: any },
+    env: any
   ): void {
     const { childCallIds } = popCall();
 
@@ -71,7 +72,8 @@ export const __trace = {
         kind: outcome.kind,
         value: outcome.value,
         error: outcome.error
-      }
+      },
+      env
     };
 
     writeEvent(callEvent);

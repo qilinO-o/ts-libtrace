@@ -1,5 +1,5 @@
 import { writeEvent, flush, flushSync } from "./traceWriter.js";
-import { CallEvent, EnterEvent, ExitEvent } from "./types.js";
+import { CallEvent, EnterEvent, ExitEvent, Invocation } from "./types.js";
 
 let hasRegistered = false;
 
@@ -22,44 +22,44 @@ function registerFlushHooks() {
   });
 }
 
-export { flush, flushSync } from "./traceWriter.js"
+export { flush as __trace_flush, flushSync as __trace_flushSync } from "./traceWriter.js"
 
 let nextCallId = 1;
-const callStack: string[] = [];
-const childCallMap: Map<string, string[]> = new Map();
+const callStack: Invocation[] = [];
+const childCallMap: Map<string, Invocation[]> = new Map();
 
 const genCallId = (): string => String(nextCallId++);
 
-const pushCall = (callId: string): void => {
-  callStack.push(callId);
-  if (!childCallMap.has(callId)) {
-    childCallMap.set(callId, []);
+const pushCall = (invocation: Invocation): void => {
+  callStack.push(invocation);
+  if (!childCallMap.has(invocation.callId)) {
+    childCallMap.set(invocation.callId, []);
   }
 };
 
-const popCall = (): { callId?: string; childCallIds: string[] } => {
-  const callId = callStack.pop();
-  if (!callId) {
-    return { callId: undefined, childCallIds: [] };
+const popCall = (): Invocation[] => {
+  const callInvoc = callStack.pop();
+  if (!callInvoc) {
+    return [];
   }
 
-  const childCallIds = childCallMap.get(callId) ?? [];
-  childCallMap.delete(callId);
+  const childInvocations = childCallMap.get(callInvoc.callId) ?? [];
+  childCallMap.delete(callInvoc.callId);
 
   const parentId = callStack[callStack.length - 1];
   if (parentId) {
-    const siblings = childCallMap.get(parentId) ?? [];
-    siblings.push(callId);
-    childCallMap.set(parentId, siblings);
+    const siblings = childCallMap.get(parentId.callId) ?? [];
+    siblings.push(callInvoc);
+    childCallMap.set(parentId.callId, siblings);
   }
 
-  return { callId, childCallIds };
+  return childInvocations;
 };
 
 export const __trace = {
   enter(fnId: string, data: { thisArg: any; args: any; env: any }): string {
     const callId = genCallId();
-    pushCall(callId);
+    pushCall({fnId, callId});
     const event: EnterEvent = {
       type: "enter",
       fnId,
@@ -78,13 +78,13 @@ export const __trace = {
     outcome: { kind: "return" | "throw"; value?: any; error?: any },
     env: any
   ): void {
-    const { childCallIds } = popCall();
+    const childInvocations = popCall();
 
     const callEvent: CallEvent = {
       type: "call",
       fnId,
       callId,
-      childCallIds
+      childInvocations
     };
 
     const event: ExitEvent = {

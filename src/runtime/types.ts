@@ -19,11 +19,16 @@ export interface ExitEvent {
   env: any;
 }
 
+export interface Invocation {
+  fnId: string;
+  callId: string;
+}
+
 export interface CallEvent {
   type: "call";
   fnId: string;
   callId: string;
-  childCallIds: string[];
+  childInvocations: Invocation[];
 }
 
 export type TraceEvent = EnterEvent | ExitEvent | CallEvent;

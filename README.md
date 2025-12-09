@@ -22,7 +22,7 @@ node dist/bin.js instrument --project path/to/tsconfig.json --outDir .instrument
 ```
 Use `--include` / `--exclude` glob patterns and `--verbose` to inspect the resolved config.
 
-3) Run your instrumented code and set an output directory:
+3) Run your instrumented code and set an output directory (default: traces out to `.libtrace`):
 ```bash
 LIBTRACE_DIR=./traces node .instrumented/your-entry.js
 ```
@@ -34,7 +34,7 @@ Example
 -------
 A minimal example lives in `examples/simple-lib`:
 ```bash
-node dist/bin.js instrument --project examples/simple-lib/tsconfig.json --outDir .instrumented
+node dist/bin.js instrument --project examples/simple-lib/tsconfig.json
 node examples/simple-lib/run.js
 ```
 Check `examples/simple-lib/traces` to see captured env values and child-call relationships.

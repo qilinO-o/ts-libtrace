@@ -4,18 +4,18 @@ import superjson from "superjson";
 import { TraceEvent } from "./types.js";
 import { getRuntimeConfig } from "./env.js";
 
-const EVENT_BUFFER_THRESHOLD = 30;
-
 class EventBuffer {
   buffer = new Map<string, TraceEvent[]>();
   eventCount = 0;
   traceDir: string;
   groupByFunction: boolean;
+  eventFlushThreshold: number;
 
   constructor() {
-    const { traceDir, groupByFunction } = getRuntimeConfig();
+    const { traceDir, groupByFunction, eventFlushThreshold } = getRuntimeConfig();
     this.traceDir = traceDir;
     this.groupByFunction = groupByFunction;
+    this.eventFlushThreshold = eventFlushThreshold;
   }
 }
 
@@ -40,7 +40,7 @@ export const writeEvent = (event: TraceEvent): void => {
   }
 
   eventBuffer.eventCount++;
-  if (eventBuffer.eventCount >= EVENT_BUFFER_THRESHOLD) {
+  if (eventBuffer.eventCount >= eventBuffer.eventFlushThreshold) {
     flushSync();
   }
 };

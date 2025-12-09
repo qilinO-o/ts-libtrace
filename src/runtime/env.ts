@@ -3,6 +3,7 @@ import path from "node:path";
 export interface RuntimeConfig {
   traceDir: string;
   groupByFunction: boolean;
+  eventFlushThreshold: number;
 }
 
 export const getRuntimeConfig = (): RuntimeConfig => {
@@ -12,5 +13,10 @@ export const getRuntimeConfig = (): RuntimeConfig => {
   const groupByFunction =
     normalizedGroupBy === undefined ? true : !["false", "0"].includes(normalizedGroupBy);
 
-  return { traceDir, groupByFunction };
+  const flushThresholdEnv = process.env.LIBTRACE_FLUSH_THRESHOLD ?? "30";
+  let eventFlushThreshold = Number(flushThresholdEnv);
+  if (!Number.isSafeInteger(eventFlushThreshold)) {
+    eventFlushThreshold = 30;
+  }
+  return { traceDir, groupByFunction, eventFlushThreshold };
 };

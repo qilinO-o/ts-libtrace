@@ -4,7 +4,23 @@ import superjson from "superjson";
 import { TraceEvent } from "./types.js";
 import { getRuntimeConfig } from "./env.js";
 
-const buffer: Map<string, TraceEvent[]> = new Map();
+const EVENT_BUFFER_THRESHOLD = 30;
+
+class EventBuffer {
+  buffer = new Map<string, TraceEvent[]>();
+  eventCount = 0;
+  traceDir: string;
+  groupByFunction: boolean;
+
+  constructor() {
+    const { traceDir, groupByFunction } = getRuntimeConfig();
+    this.traceDir = traceDir;
+    this.groupByFunction = groupByFunction;
+  }
+}
+
+// singleton
+const eventBuffer = new EventBuffer();
 
 const deriveTraceFilePath = (fnId: string, traceDir: string): string => {
   const safeFnId = fnId.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -12,22 +28,26 @@ const deriveTraceFilePath = (fnId: string, traceDir: string): string => {
 };
 
 export const writeEvent = (event: TraceEvent): void => {
-  const { traceDir, groupByFunction } = getRuntimeConfig();
-  const targetPath = groupByFunction
-    ? deriveTraceFilePath(event.fnId, traceDir)
-    : path.join(traceDir, "trace.jsonl");
+  const targetPath = eventBuffer.groupByFunction
+    ? deriveTraceFilePath(event.fnId, eventBuffer.traceDir)
+    : path.join(eventBuffer.traceDir, "trace.jsonl");
 
-  const existing = buffer.get(targetPath);
+  const existing = eventBuffer.buffer.get(targetPath);
   if (existing !== undefined) {
     existing.push(event);
   } else {
-    buffer.set(targetPath, [event]);
+    eventBuffer.buffer.set(targetPath, [event]);
+  }
+
+  eventBuffer.eventCount++;
+  if (eventBuffer.eventCount >= EVENT_BUFFER_THRESHOLD) {
+    flushSync();
   }
 };
 
 export const flush = async (): Promise<void> => {
-  const entries = Array.from(buffer.entries());
-  buffer.clear();
+  const entries = Array.from(eventBuffer.buffer.entries());
+  eventBuffer.buffer.clear();
 
   await Promise.all(
     entries.map(async ([filePath, events]) => {
@@ -37,3 +57,13 @@ export const flush = async (): Promise<void> => {
     })
   );
 };
+
+export const flushSync = (): void => {
+  const entries = Array.from(eventBuffer.buffer.entries());
+  eventBuffer.buffer.clear();
+  entries.map(([filePath, events]) => {
+    const lines = events.map((event) => `${superjson.stringify(event)}\n`);
+    fs.ensureDirSync(path.dirname(filePath));
+    fs.appendFileSync(filePath, lines.join(""));
+  });
+}

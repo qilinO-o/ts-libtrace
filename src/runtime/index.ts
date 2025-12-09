@@ -1,4 +1,4 @@
-import { writeEvent, flush } from "./traceWriter.js";
+import { writeEvent, flush, flushSync } from "./traceWriter.js";
 import { CallEvent, EnterEvent, ExitEvent } from "./types.js";
 
 let hasRegistered = false;
@@ -7,18 +7,22 @@ function registerFlushHooks() {
   if (hasRegistered) return;
   hasRegistered = true;
 
-  const doFlush = async () => {
-    try {
-      await flush();
-    } catch (e) {
-      console.error(e)
-    } 
-  };
-
   process.on("beforeExit", () => {
-    void doFlush();
+    flush().catch((err) => {
+      console.error("[libtrace] async flush failed in beforeExit:", err);
+    });
+  });
+
+  process.on("exit", () => {
+    try {
+      flushSync();
+    } catch (err) {
+      console.error("[libtrace] sync flush failed in exit:", err);
+    }
   });
 }
+
+export { flush, flushSync } from "./traceWriter.js"
 
 let nextCallId = 1;
 const callStack: string[] = [];

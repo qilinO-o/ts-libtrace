@@ -19,7 +19,8 @@
     "fs-extra": "^11.3.2",
     "glob": "^13.0.0",
     "superjson": "^2.2.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

@@ -1,6 +1,10 @@
+import fs from "fs-extra";
 import path from "node:path";
 import { ensureReplayIndex } from "./indexStore.js";
+import { generateReplaySource } from "./codegen.js";
 import { groupEventsToCallTriples, readTraceFile } from "./traceReader.js";
+
+const safeSegment = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, "_");
 
 export function runReplay(traceFile: string, outDir: string): void {
   const traceDir = path.dirname(traceFile);
@@ -10,7 +14,35 @@ export function runReplay(traceFile: string, outDir: string): void {
   const triples = groupEventsToCallTriples(events);
 
   console.log(
-    `Replayed trace file ${traceFile} -> ${triples.length} call triples (outDir=${outDir})`
+    `Replaying trace file ${traceFile}\n\t-> ${triples.length} invocations\n\tTo outDir=${outDir})`
   );
-  console.log(`Replay index contains ${Object.keys(index.calls).length} calls`);
+
+  fs.ensureDirSync(outDir);
+
+  const generatedFiles: string[] = [];
+
+  triples.forEach((triple) => {
+    const fnId = triple.enter?.fnId;
+    const callId = triple.enter?.callId;
+    if (fnId === undefined || callId === undefined) {
+      return;
+    }
+
+    const fnSafe = safeSegment(fnId);
+    const callSafe = safeSegment(callId);
+    const fileName = `replay_${fnSafe}_${callSafe}.generated.ts`;
+    const filePath = path.join(outDir, fileName);
+
+    const source = generateReplaySource(triple, {
+      fnIdSafe: fnSafe,
+      callIdSafe: callSafe
+    });
+
+    fs.writeFileSync(filePath, source, "utf8");
+    generatedFiles.push(filePath);
+  });
+
+  if (generatedFiles.length > 0) {
+    console.log(`Generated replay files:\n${generatedFiles.join("\n")}`);
+  }
 }

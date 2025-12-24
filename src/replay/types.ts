@@ -6,3 +6,19 @@ export interface CallTriple {
   exit: ExitEvent | undefined;
 }
 
+export interface TraceFileMeta {
+  path: string;
+  mtimeMs: number;
+}
+
+export interface CallIndexEntry {
+  callId: string;
+  fnId: string;
+  filePath: string;
+  lineNumbers: number[];
+}
+
+export interface ReplayIndex {
+  files: TraceFileMeta[];
+  calls: Record<string, CallIndexEntry>;
+}

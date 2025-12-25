@@ -42,3 +42,16 @@ export function chained(a: number, b: number) {
   const product = mul(a, b);
   return sum + product;
 }
+
+export class INum {
+  i: number = 0;
+  r: number = 0;
+  constructor(i: number, r: number) {
+    this.i = i;
+    this.r = r;
+  }
+}
+
+export function iAdd(a: INum, b: INum): INum {
+  return new INum(a.i + b.i, a.r + b.r);
+}

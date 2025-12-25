@@ -23,3 +23,8 @@ calc.add(5);
 
 math.demoSort([3, 1, 2]);
 math.chained(2, 3);
+
+
+const i1 = new math.INum(1, 2);
+const i2 = new math.INum(3, 4);
+math.iAdd(i1, i2);

@@ -34,7 +34,7 @@ export function runReplay(traceFile: string, outDir: string): void {
     const filePath = path.join(outDir, fileName);
 
     try {
-      const source = generateReplaySource(triple);
+      const source = generateReplaySource(triple, index);
       fs.writeFileSync(filePath, source, "utf8");
       generatedFiles.push(filePath);
     } catch (err) {

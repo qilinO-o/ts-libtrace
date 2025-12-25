@@ -1,4 +1,5 @@
-import { CallTriple } from "./types.js";
+import { findCallTripleById } from "./indexStore.js";
+import { CallTriple, ReplayIndex } from "./types.js";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -41,7 +42,40 @@ const extractFnInfo = (fnId: string): { className?: string; fnName?: string } =>
   };
 };
 
-export function generateReplaySource(triple: CallTriple): string {
+export function generateMockSource(triple: CallTriple): string {
+  const enter = triple.enter;
+  const exit = triple.exit;
+  const fnId = enter?.fnId ?? exit?.fnId ?? "unknown#-#unknown#L1C1";
+  const { fnName } = extractFnInfo(fnId);
+  if (!fnName) {
+    return "";
+  }
+
+  const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
+  const outcome = exit?.outcome;
+  const params = args.map((_, idx) => `arg${idx}`).join(", ");
+
+  const lines: string[] = [];
+  lines.push(`function ${fnName}(${params}) {`);
+  args.forEach((arg, idx) => {
+    lines.push(`  const expected${idx} = ${emitValueAsTsExpression(arg)};`);
+    lines.push(
+      `  if (JSON.stringify(arg${idx}) !== JSON.stringify(expected${idx})) { throw new Error("arg mismatch"); }`
+    );
+  });
+
+  if (outcome?.kind === "throw") {
+    lines.push(`  throw ${emitValueAsTsExpression(outcome.error)};`);
+  } else if (outcome?.kind === "return") {
+    lines.push(`  return ${emitValueAsTsExpression(outcome.value)};`);
+  } else {
+    lines.push(`  return undefined;`);
+  }
+  lines.push(`}`);
+  return lines.join("\n");
+}
+
+export function generateReplaySource(triple: CallTriple, index: ReplayIndex): string {
   const enter = triple.enter;
   const exit = triple.exit;
   const fnId = enter?.fnId;
@@ -61,26 +95,40 @@ export function generateReplaySource(triple: CallTriple): string {
 
   const lines: string[] = [];
   lines.push(`// fnId: ${fnId} callId: ${callId}`);
-  lines.push(`export function replay_wrapper(): boolean {`);
-  lines.push(`  // args`);
-  args.forEach((arg, idx) => {
-    lines.push(`  const arg${idx} = ${emitValueAsTsExpression(arg)};`);
-  });
+
   const envKeys = Object.keys(env);
   if (envKeys.length > 0)  {
-    lines.push(`  // env`);
+    lines.push(`// env`);
     let envObjectNeeded = false;
     envKeys.forEach((key) => {
       if (isValidIdentifier(key)) {
-        lines.push(`  let ${key} = ${emitValueAsTsExpression(env[key])};`);
+        lines.push(`let ${key} = ${emitValueAsTsExpression(env[key])};`);
       } else {
         envObjectNeeded = true;
       }
     });
     if (envObjectNeeded) {
-      lines.push(`  const env = ${emitValueAsTsExpression(env)};`);
+      lines.push(`const env = ${emitValueAsTsExpression(env)};`);
     }
   }
+
+  const childInvocations = triple.call?.childInvocations ?? [];
+  childInvocations.forEach((child) => {
+    const childTriple = findCallTripleById(child.callId, index);
+    if (childTriple) {
+      const mockSource = generateMockSource(childTriple);
+      if (mockSource.length > 0) {
+        lines.push(mockSource);
+        lines.push("");
+      }
+    }
+  });
+
+  lines.push(`export function replay_wrapper(): boolean {`);
+  lines.push(`  // args`);
+  args.forEach((arg, idx) => {
+    lines.push(`  const arg${idx} = ${emitValueAsTsExpression(arg)};`);
+  });
 
   const argList = args.map((_, idx) => `arg${idx}`).join(", ");
 

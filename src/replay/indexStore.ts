@@ -12,7 +12,7 @@ const readLines = (filePath: string): string[] => {
   return content.split("\n").filter((line) => line.trim().length > 0);
 };
 
-export function loadReplayIndex(dir: string): ReplayIndex | undefined {
+function loadReplayIndex(dir: string): ReplayIndex | undefined {
   const indexPath = path.join(dir, INDEX_FILE);
   if (!fs.existsSync(indexPath)) {
     return undefined;
@@ -20,7 +20,7 @@ export function loadReplayIndex(dir: string): ReplayIndex | undefined {
   return fs.readJsonSync(indexPath) as ReplayIndex;
 }
 
-export function buildReplayIndex(dir: string): ReplayIndex {
+function buildReplayIndex(dir: string): ReplayIndex {
   const files = fs
     .readdirSync(dir)
     .filter((entry) => entry.endsWith(".jsonl"))
@@ -86,18 +86,24 @@ const findTripleByCallId = (events: TraceEvent[], callId: string): CallTriple | 
   return triples.find((triple) => triple.enter?.callId === callId || triple.exit?.callId === callId);
 };
 
-export function findCallTripleById(callId: string, traceDir: string): CallTriple | undefined {
-  const index = ensureReplayIndex(traceDir);
+export function findCallTripleById(callId: string, index: ReplayIndex): CallTriple | undefined {
   const entry = index.calls[callId];
   if (!entry) {
     return undefined;
   }
 
-  const lines = readLines(entry.filePath);
-  if (lines.length === 0) {
+  const allLines = readLines(entry.filePath);
+  if (allLines.length === 0) {
     return undefined;
   }
 
-  const events = lines.map((line) => superjson.parse(line) as TraceEvent);
+  const targetLines =
+    entry.lineNumbers.length > 0
+      ? entry.lineNumbers
+          .filter((lineNumber) => lineNumber > 0 && lineNumber <= allLines.length)
+          .map((lineNumber) => allLines[lineNumber - 1])
+      : allLines;
+
+  const events = targetLines.map((line) => superjson.parse(line) as TraceEvent);
   return findTripleByCallId(events, callId);
 }

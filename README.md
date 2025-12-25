@@ -8,6 +8,7 @@ What it does
 - Instruments TypeScript sources via a custom transformer (CLI command `libtrace instrument`).
 - Emits JSONL traces per function (by default grouped under `.libtrace` and per-function files).
 - Records enter/exit parameters, captured free-variable environments, and parent/child call relationships.
+- Supports `replay` to turn a trace JSONL file into standalone TypeScript replay sources.
 
 Quick start
 -----------
@@ -30,12 +31,22 @@ LIBTRACE_DIR=./traces node .instrumented/your-entry.js
 4) Inspect traces:
 Each function gets a JSONL file containing `enter`, `call`, and `exit` events with serialized args, env, and outcomes.
 
+Replay
+------
+Generate replay sources from a single trace file:
+```bash
+node dist/bin.js replay examples/simple-lib/traces/src_math.ts_-_addWithOffset_L13C1.jsonl
+```
+This writes `replay_*.generated.ts` files into the same directory (or pass `--outDir`).
+Each file contains a `replay_wrapper()` function with arguments/env setup, a direct call, and basic return/throw checks.
+
 Example
 -------
 A minimal example lives in `examples/simple-lib`:
 ```bash
 node dist/bin.js instrument --project examples/simple-lib/tsconfig.json
 node examples/simple-lib/run.js
+node dist/bin.js replay examples/simple-lib/traces/src_math.ts_-_addWithOffset_L13C1.jsonl
 ```
 Check `examples/simple-lib/traces` to see captured env values and child-call relationships.
 

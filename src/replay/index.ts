@@ -34,10 +34,7 @@ export function runReplay(traceFile: string, outDir: string): void {
     const filePath = path.join(outDir, fileName);
 
     try {
-      const source = generateReplaySource(triple, {
-        fnIdSafe: fnSafe,
-        callIdSafe: callSafe
-      });
+      const source = generateReplaySource(triple);
       fs.writeFileSync(filePath, source, "utf8");
       generatedFiles.push(filePath);
     } catch (err) {

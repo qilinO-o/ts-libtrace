@@ -41,14 +41,12 @@ const extractFnInfo = (fnId: string): { className?: string; fnName?: string } =>
   };
 };
 
-export function generateReplaySource(
-  triple: CallTriple,
-  options: { fnIdSafe: string; callIdSafe: string }
-): string {
+export function generateReplaySource(triple: CallTriple): string {
   const enter = triple.enter;
   const exit = triple.exit;
   const fnId = enter?.fnId;
-  if (fnId === undefined) {
+  const callId = enter?.callId;
+  if (fnId === undefined || callId === undefined) {
     throw Error("Error: replay with bad CallTriple");
   }
   
@@ -62,7 +60,7 @@ export function generateReplaySource(
   const thisArg = enter?.thisArg ?? null;
 
   const lines: string[] = [];
-  lines.push(`// fnId: ${fnId} callId: ${options.callIdSafe}`);
+  lines.push(`// fnId: ${fnId} callId: ${callId}`);
   lines.push(`export function replay_wrapper(): boolean {`);
   lines.push(`  // args`);
   args.forEach((arg, idx) => {

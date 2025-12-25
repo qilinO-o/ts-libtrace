@@ -63,6 +63,19 @@ const isIndexValid = (index: ReplayIndex, dir: string): boolean => {
     return false;
   }
 
+  const currentFiles = fs
+    .readdirSync(dir)
+    .filter((entry) => entry.endsWith(".jsonl"))
+    .map((entry) => path.join(dir, entry));
+
+  const indexedPaths = new Set(
+    index.files.map((file) => (path.isAbsolute(file.path) ? file.path : path.join(dir, file.path)))
+  );
+
+  if (currentFiles.some((filePath) => !indexedPaths.has(filePath))) {
+    return false;
+  }
+
   return index.files.every((file) => {
     const filePath = path.isAbsolute(file.path) ? file.path : path.join(dir, file.path);
     if (!fs.existsSync(filePath)) {

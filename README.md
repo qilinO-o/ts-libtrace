@@ -27,6 +27,7 @@ Use `--include` / `--exclude` glob patterns and `--verbose` to inspect the resol
 ```bash
 LIBTRACE_DIR=./traces node .instrumented/your-entry.js
 ```
+Or run any test code(e.g. `vitest`) after instrumentation.
 
 4) Inspect traces:
 Each function gets a JSONL file containing `enter`, `call`, and `exit` events with serialized args, env, and outcomes.

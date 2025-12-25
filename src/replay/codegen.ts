@@ -33,11 +33,11 @@ export function emitValueAsTsExpression(value: unknown): string {
   return JSON.stringify(String(value));
 }
 
-const extractFnInfo = (fnId: string): { className: string; fnName: string } => {
+const extractFnInfo = (fnId: string): { className?: string; fnName?: string } => {
   const parts = fnId.split("#");
   return {
-    className: parts[1] ?? "-",
-    fnName: parts[2] ?? "unknownFn"
+    className: parts[1] ?? undefined,
+    fnName: parts[2] ?? undefined
   };
 };
 
@@ -47,8 +47,15 @@ export function generateReplaySource(
 ): string {
   const enter = triple.enter;
   const exit = triple.exit;
-  const fnId = enter?.fnId ?? exit?.fnId ?? "unknown#-#unknown#L1C1";
+  const fnId = enter?.fnId;
+  if (fnId === undefined) {
+    throw Error("Error: replay with bad CallTriple");
+  }
+  
   const { className, fnName } = extractFnInfo(fnId);
+  if (className === undefined || fnName === undefined) {
+    throw Error("Error: replay with bad fnId");
+  }
 
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
   const env = isPlainObject(enter?.env) ? (enter?.env as Record<string, unknown>) : {};

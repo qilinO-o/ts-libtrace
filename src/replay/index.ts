@@ -33,13 +33,16 @@ export function runReplay(traceFile: string, outDir: string): void {
     const fileName = `replay_${fnSafe}_${callSafe}.generated.ts`;
     const filePath = path.join(outDir, fileName);
 
-    const source = generateReplaySource(triple, {
-      fnIdSafe: fnSafe,
-      callIdSafe: callSafe
-    });
-
-    fs.writeFileSync(filePath, source, "utf8");
-    generatedFiles.push(filePath);
+    try {
+      const source = generateReplaySource(triple, {
+        fnIdSafe: fnSafe,
+        callIdSafe: callSafe
+      });
+      fs.writeFileSync(filePath, source, "utf8");
+      generatedFiles.push(filePath);
+    } catch (err) {
+      console.error(`Failed to generate replay for ${fnId} of call ${callId} with error: ${err}`);
+    }
   });
 
   if (generatedFiles.length > 0) {

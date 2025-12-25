@@ -68,8 +68,6 @@ export function generateReplaySource(
   args.forEach((arg, idx) => {
     lines.push(`  const arg${idx} = ${emitValueAsTsExpression(arg)};`);
   });
-  lines.push(`  const args = [${args.map((_, idx) => `arg${idx}`).join(", ")}];`);
-
   const envKeys = Object.keys(env);
   if (envKeys.length > 0)  {
     lines.push(`  // env`);
@@ -86,11 +84,20 @@ export function generateReplaySource(
     }
   }
 
-  lines.push(`  const thisArg = ${emitValueAsTsExpression(thisArg)};`);
-  lines.push(`  const fnName = ${JSON.stringify(fnName)};`);
-  lines.push(`  const target = thisArg ?? (globalThis as any);`);
+  const argList = args.map((_, idx) => `arg${idx}`).join(", ");
 
-  const callExpr = `target && typeof (target as any)[fnName] === "function" ? (target as any)[fnName](...args) : undefined`;
+  let callExpr = `${fnName}(${argList})`;
+  if (className && className !== "-") {
+    lines.push(`  const thisObj = new ${className}();`);
+    if (thisArg && typeof thisArg === "object") {
+      Object.keys(thisArg as Record<string, unknown>).forEach((key) => {
+        const safeKey = isValidIdentifier(key) ? key : JSON.stringify(key);
+        const keyAccess = isValidIdentifier(key) ? `.${safeKey}` : `[${safeKey}]`;
+        lines.push(`  thisObj${keyAccess} = ${emitValueAsTsExpression((thisArg as Record<string, unknown>)[key])};`);
+      });
+    }
+    callExpr = `thisObj.${fnName}(${argList})`;
+  }
 
   const outcome = exit?.outcome;
   if (outcome?.kind === "throw") {

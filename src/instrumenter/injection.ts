@@ -155,6 +155,7 @@ export function instrumentFunctionBody(
 
   const rewrittenStatements: ts.Statement[] = [];
 
+  var if_make_exit = false;
   originalBlock.statements.forEach((stmt) => {
     if (ts.isReturnStatement(stmt)) {
       const initializer = stmt.expression ?? factory.createVoidZero();
@@ -163,10 +164,16 @@ export function instrumentFunctionBody(
       const returnStmt = factory.createReturnStatement(factory.createIdentifier("__ret"));
 
       rewrittenStatements.push(retConst, exitStmt, returnStmt);
+      if_make_exit = true;
     } else {
       rewrittenStatements.push(stmt);
     }
   });
+
+  if (!if_make_exit) {
+    const exitStmt = createExitCall(factory, "return", "undefined", envExpression);
+    rewrittenStatements.push(exitStmt);
+  }
 
   const catchClause = factory.createCatchClause(
     factory.createVariableDeclaration(factory.createIdentifier("__err")),

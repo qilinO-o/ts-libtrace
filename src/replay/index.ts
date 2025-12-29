@@ -6,7 +6,7 @@ import { groupEventsToCallTriples, readTraceFile } from "./traceReader.js";
 
 const safeSegment = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-export function runReplay(traceFile: string, outDir: string): void {
+export function runReplay(traceFile: string, outDir: string, useTypeNames = false): void {
   const traceDir = path.dirname(traceFile);
   const index = ensureReplayIndex(traceDir);
 
@@ -34,7 +34,7 @@ export function runReplay(traceFile: string, outDir: string): void {
     const filePath = path.join(outDir, fileName);
 
     try {
-      const source = generateReplaySource(triple, index);
+      const source = generateReplaySource(triple, index, useTypeNames);
       fs.writeFileSync(filePath, source, "utf8");
       generatedFiles.push(filePath);
     } catch (err) {

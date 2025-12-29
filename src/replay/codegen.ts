@@ -6,6 +6,28 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 
 const isValidIdentifier = (name: string): boolean => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name);
 
+const normalizeTypeName = (typeName: string | undefined): string | undefined => {
+  if (!typeName) return undefined;
+  const trimmed = typeName.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const getIndexedTypeName = (typeNames: string[] | undefined, index: number): string | undefined =>
+  normalizeTypeName(typeNames?.[index]);
+
+const emitBinding = (
+  indent: number,
+  name: string,
+  valueExpression: string,
+  mutable: boolean,
+  typeName?: string
+): string => {
+  const indentText = " ".repeat(Math.max(0, indent));
+  const keyword = mutable ? "let" : "const";
+  const typeAnnotation = typeName ? `: ${typeName}` : "";
+  return `${indentText}${keyword} ${name}${typeAnnotation} = ${valueExpression};`;
+};
+
 const toJsonString = (value: unknown): string => {
   try {
     const jsonString = JSON.stringify(value);
@@ -15,7 +37,13 @@ const toJsonString = (value: unknown): string => {
   }
 };
 
-const emitParsedBinding = (indent: number, name: string, value: unknown, mutable: boolean): string => {
+const emitParsedBinding = (
+  indent: number,
+  name: string,
+  value: unknown,
+  mutable: boolean,
+  typeName?: string
+): string => {
   const indentText = " ".repeat(Math.max(0, indent));
   let rhs = undefined;
   if (value === null) rhs = "null";
@@ -26,10 +54,10 @@ const emitParsedBinding = (indent: number, name: string, value: unknown, mutable
   if (rhs === undefined) {
     const jsonString = toJsonString(value);
     rhs = JSON.stringify(jsonString);
-    rhs = `JSON.parse(${rhs})`
+    rhs = typeName ? `JSON.parse<${typeName}>(${rhs})` : `JSON.parse(${rhs})`;
   }
   const keyword = mutable ? "let" : "const";
-  return `${indentText}${keyword} ${name} = ${rhs};`;
+  return `${indentText}${keyword} ${name}${typeName ? `: ${typeName}` : ""} = ${rhs};`;
 };
 
 export function emitValueAsTsExpression(value: unknown): string {
@@ -68,7 +96,7 @@ const extractFnInfo = (fnId: string): { className?: string; fnName?: string } =>
   };
 };
 
-export function generateMockSource(triple: CallTriple): string {
+export function generateMockSource(triple: CallTriple, useTypeNames = false): string {
   const enter = triple.enter;
   const exit = triple.exit;
   const fnId = enter?.fnId;
@@ -82,7 +110,10 @@ export function generateMockSource(triple: CallTriple): string {
 
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
   const outcome = exit?.outcome;
-  const params = args.map((_, idx) => `arg${idx}`).join(", ");
+  const argTypes = useTypeNames ? enter?.argsTypes : undefined;
+  const params = args
+    .map((_, idx) => `arg${idx}${useTypeNames ? `: ${getIndexedTypeName(argTypes, idx) ?? "unknown"}` : ""}`)
+    .join(", ");
 
   const lines: string[] = [];
   let classIndent = "";
@@ -94,7 +125,8 @@ export function generateMockSource(triple: CallTriple): string {
   if (fnName === "constructor") fnHead = "";
   lines.push(`${classIndent}${fnHead}${fnName}(${params}) {`);
   args.forEach((arg, idx) => {
-    lines.push(emitParsedBinding(2 + classIndent.length, `expected${idx}`, arg, false));
+    const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
+    lines.push(emitParsedBinding(2 + classIndent.length, `expected${idx}`, arg, false, argType));
     lines.push(
       `${classIndent}  if (JSON.stringify(arg${idx}) !== JSON.stringify(expected${idx})) { throw new Error("arg mismatch"); }`
     );
@@ -114,7 +146,11 @@ export function generateMockSource(triple: CallTriple): string {
   return lines.join("\n");
 }
 
-export function generateReplaySource(triple: CallTriple, index: ReplayIndex): string {
+export function generateReplaySource(
+  triple: CallTriple,
+  index: ReplayIndex,
+  useTypeNames = false
+): string {
   const enter = triple.enter;
   const exit = triple.exit;
   const fnId = enter?.fnId;
@@ -131,23 +167,42 @@ export function generateReplaySource(triple: CallTriple, index: ReplayIndex): st
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
   const env = isPlainObject(enter?.env) ? (enter?.env as Record<string, unknown>) : {};
   const thisArg = enter?.thisArg ?? null;
+  const argTypes = useTypeNames ? enter?.argsTypes : undefined;
+  const envTypes = useTypeNames ? enter?.envTypes : undefined;
+  const thisArgTypeName = useTypeNames ? normalizeTypeName(enter?.thisArgTypes?.[0]) : undefined;
+  const outcomeTypes = useTypeNames ? exit?.outcomeTypes : undefined;
+  const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
 
   const lines: string[] = [];
   lines.push(`// fnId: ${fnId} callId: ${callId}`);
+  if (useTypeNames) {
+    lines.push("import { JSON } from \"json-as\";");
+    lines.push("");
+  }
 
   const envKeys = Object.keys(env);
   if (envKeys.length > 0)  {
     lines.push(`// env`);
     let envObjectNeeded = false;
-    envKeys.forEach((key) => {
+    envKeys.forEach((key, index) => {
       if (isValidIdentifier(key)) {
-        lines.push(emitParsedBinding(0, key, env[key], true));
+        const envType = useTypeNames ? getIndexedTypeName(envTypes, index) ?? "unknown" : undefined;
+        lines.push(emitParsedBinding(0, key, env[key], true, envType));
       } else {
         envObjectNeeded = true;
       }
     });
     if (envObjectNeeded) {
-      lines.push(emitParsedBinding(0, "env", env, false));
+      let envTypeName: string | undefined = undefined;
+      if (useTypeNames) {
+        const propTypes = envKeys.map((key, index) => {
+          const propType = getIndexedTypeName(envTypes, index) ?? "unknown";
+          const propName = isValidIdentifier(key) ? key : JSON.stringify(key);
+          return `${propName}: ${propType}`;
+        });
+        envTypeName = `{ ${propTypes.join("; ")} }`;
+      }
+      lines.push(emitParsedBinding(0, "env", env, false, envTypeName));
     }
   }
 
@@ -155,7 +210,7 @@ export function generateReplaySource(triple: CallTriple, index: ReplayIndex): st
   childInvocations.forEach((child) => {
     const childTriple = findCallTripleById(child.callId, index);
     if (childTriple) {
-      const mockSource = generateMockSource(childTriple);
+      const mockSource = generateMockSource(childTriple, useTypeNames);
       if (mockSource.length > 0) {
         lines.push(mockSource);
         lines.push("");
@@ -166,14 +221,21 @@ export function generateReplaySource(triple: CallTriple, index: ReplayIndex): st
   lines.push(`export function replay_wrapper(): boolean {`);
   lines.push(`  // args`);
   args.forEach((arg, idx) => {
-    lines.push(emitParsedBinding(2, `arg${idx}`, arg, false));
+    const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
+    lines.push(emitParsedBinding(2, `arg${idx}`, arg, false, argType));
   });
 
   const argList = args.map((_, idx) => `arg${idx}`).join(", ");
 
   let callExpr = `${fnName}(${argList})`;
   if (className && className !== "-") {
-    lines.push(`  const thisObj = new ${className}();`);
+    if (useTypeNames) {
+      const fallback = normalizeTypeName(className) ?? "unknown";
+      const typeName = thisArgTypeName ?? fallback;
+      lines.push(emitBinding(2, "thisObj", `new ${className}()`, false, typeName));
+    } else {
+      lines.push(`  const thisObj = new ${className}();`);
+    }
     if (thisArg && typeof thisArg === "object") {
       Object.keys(thisArg as Record<string, unknown>).forEach((key) => {
         const safeKey = isValidIdentifier(key) ? key : JSON.stringify(key);
@@ -186,7 +248,11 @@ export function generateReplaySource(triple: CallTriple, index: ReplayIndex): st
 
   const outcome = exit?.outcome;
   if (outcome?.kind === "throw") {
-    lines.push(`  let threw = false;`);
+    if (useTypeNames) {
+      lines.push(emitBinding(2, "threw", "false", true, "boolean"));
+    } else {
+      lines.push(`  let threw = false;`);
+    }
     lines.push(`  try {`);
     lines.push(`    ${callExpr};`);
     lines.push(`  } catch (_e) {`);
@@ -194,8 +260,14 @@ export function generateReplaySource(triple: CallTriple, index: ReplayIndex): st
     lines.push(`  }`);
     lines.push(`  if (!threw) return false;`);
   } else if (outcome?.kind === "return") {
-    lines.push(`  const ret = ${callExpr};`);
-    lines.push(emitParsedBinding(2, "expected", outcome.value, false));
+    if (useTypeNames) {
+      const typeName = returnTypeName ?? "unknown";
+      lines.push(emitBinding(2, "ret", callExpr, false, typeName));
+      lines.push(emitParsedBinding(2, "expected", outcome.value, false, typeName));
+    } else {
+      lines.push(`  const ret = ${callExpr};`);
+      lines.push(emitParsedBinding(2, "expected", outcome.value, false));
+    }
     lines.push(`  if (JSON.stringify(ret) !== JSON.stringify(expected)) return false;`);
   } else {
     lines.push(`  ${callExpr};`);

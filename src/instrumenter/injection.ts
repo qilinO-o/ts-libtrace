@@ -171,7 +171,11 @@ export function instrumentFunctionBody(
   });
 
   if (!if_make_exit) {
-    const exitStmt = createExitCall(factory, "return", "undefined", envExpression);
+    const exitStmt = createExitCall(
+      factory, "return", 
+      (fnIdStruct.className && fnIdStruct.name === "constructor" ? "this" : "undefined"), 
+      envExpression
+    );
     rewrittenStatements.push(exitStmt);
   }
 

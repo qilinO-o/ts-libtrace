@@ -3,8 +3,11 @@ export interface EnterEvent {
   fnId: string;
   callId: string;
   thisArg: any;
+  thisArgTypes: string[];
   args: any;
+  argsTypes: string[];
   env: any;
+  envTypes: string[];
 }
 
 export interface ExitEvent {
@@ -16,7 +19,10 @@ export interface ExitEvent {
     value?: any;
     error?: any;
   };
+  // [returnValueType, errorType]
+  outcomeTypes: string[];
   env: any;
+  envTypes: string[];
 }
 
 export interface Invocation {

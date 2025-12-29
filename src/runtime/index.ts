@@ -3,6 +3,54 @@ import { CallEvent, EnterEvent, ExitEvent, Invocation } from "./types.js";
 
 let hasRegistered = false;
 
+const getTypeName = (value: unknown): string => {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+
+  const valueType = typeof value;
+  if (valueType === "object" || valueType === "function") {
+    const ctor = (value as { constructor?: { name?: string } }).constructor;
+    if (ctor && typeof ctor.name === "string" && ctor.name.length > 0) {
+      return ctor.name;
+    }
+    return valueType === "function" ? "Function" : "Object";
+  }
+
+  return valueType;
+};
+
+const getArgTypeNames = (args: unknown): string[] => {
+  if (Array.isArray(args)) {
+    return args.map(getTypeName);
+  }
+
+  if (args && typeof args === "object") {
+    const maybeArrayLike = args as { length?: number };
+    if (typeof maybeArrayLike.length === "number") {
+      try {
+        return Array.from(args as ArrayLike<unknown>).map(getTypeName);
+      } catch {
+        return [getTypeName(args)];
+      }
+    }
+  }
+
+  return [getTypeName(args)];
+};
+
+const getEnvTypeNames = (env: unknown): string[] => {
+  if (env === null || env === undefined) {
+    return [];
+  }
+  if (typeof env !== "object") {
+    return [getTypeName(env)];
+  }
+
+  return Object.keys(env as Record<string, unknown>).map((key) =>
+    getTypeName((env as Record<string, unknown>)[key])
+  );
+};
+
 function registerFlushHooks() {
   if (hasRegistered) return;
   hasRegistered = true;
@@ -60,13 +108,19 @@ export const __trace = {
   enter(fnId: string, data: { thisArg: any; args: any; env: any }): string {
     const callId = genCallId();
     pushCall({fnId, callId});
+    const env = data.env;
+    const args = data.args;
+    const thisArg = data.thisArg;
     const event: EnterEvent = {
       type: "enter",
       fnId,
       callId,
-      thisArg: data.thisArg,
-      args: data.args,
-      env: data.env
+      thisArg,
+      thisArgTypes: [getTypeName(thisArg)],
+      args,
+      argsTypes: getArgTypeNames(args),
+      env,
+      envTypes: getEnvTypeNames(env)
     };
 
     writeEvent(event);
@@ -79,6 +133,7 @@ export const __trace = {
     env: any
   ): void {
     const childInvocations = popCall();
+    const envValue = env;
 
     const callEvent: CallEvent = {
       type: "call",
@@ -96,7 +151,9 @@ export const __trace = {
         value: outcome.value,
         error: outcome.error
       },
-      env
+      outcomeTypes: [getTypeName(outcome.value), getTypeName(outcome.error)],
+      env: envValue,
+      envTypes: getEnvTypeNames(envValue)
     };
 
     writeEvent(callEvent);

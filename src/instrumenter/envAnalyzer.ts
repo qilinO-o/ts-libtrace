@@ -103,6 +103,14 @@ export function collectFreeVariableNames(fn: ts.FunctionLikeDeclarationBase): st
     return false;
   };
 
+  const isCallLikeCallee = (node: ts.Identifier): boolean => {
+    const parent = node.parent;
+    return (
+      (ts.isCallExpression(parent) && parent.expression === node) ||
+      (ts.isNewExpression(parent) && parent.expression === node)
+    );
+  };
+
   const visit = (node: ts.Node, declaredSet: Set<string>): void => {
     if (node !== fn && ts.isFunctionLike(node) && ts.isFunctionLike(node)) {
       if ("body" in node && node.body) {
@@ -123,6 +131,8 @@ export function collectFreeVariableNames(fn: ts.FunctionLikeDeclarationBase): st
         // ignore built-ins and special identifiers
       } else if (isPropertyNamePosition(node)) {
         // skip property names in member access or object literals
+      } else if (isCallLikeCallee(node)) {
+        // skip direct call/new callee identifiers
       } else if (declaredSet.has(name)) {
         // declared within this function scope
       } else {

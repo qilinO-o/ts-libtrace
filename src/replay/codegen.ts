@@ -92,6 +92,11 @@ const emitParsedBinding = (
   return `${indentText}${keyword} ${name}${typeName ? `: ${typeName}` : ""} = ${rhs};`;
 };
 
+const emitAnnotation = (indent: number, annotation: string): string => {
+  const indentText = " ".repeat(Math.max(0, indent));
+  return `${indentText}// ${annotation}`;
+}
+
 export function emitValueAsTsExpression(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
@@ -209,20 +214,22 @@ export function generateReplaySource(
   const outcomeTypes = useTypeNames ? exit?.outcomeTypes : undefined;
   const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
 
+  // import section
   const lines: string[] = [];
-  lines.push(`// fnId: ${fnId} callId: ${callId}`);
+  lines.push(emitAnnotation(0, `fnId: ${fnId} callId: ${callId}`));
   if (useTypeNames) {
     lines.push("import { JSON } from \"json-as\";");
     lines.push("");
   }
 
+  // env section
   const enterEnvKeys = Object.keys(enterEnv);
   const exitEnvKeys = Object.keys(exitEnv);
   const enterEnvObjectNeeded = enterEnvKeys.some((key) => !isValidIdentifier(key));
   const exitEnvObjectNeeded = exitEnvKeys.some((key) => !isValidIdentifier(key));
   const envObjectNeeded = enterEnvObjectNeeded || exitEnvObjectNeeded;
   if (enterEnvKeys.length > 0)  {
-    lines.push(`// env`);
+    lines.push(emitAnnotation(0, "env"));
     if (envObjectNeeded) {
       const envTypeName = useTypeNames ? buildObjectTypeName(enterEnvKeys, enterEnvTypeMap) : undefined;
       lines.push(emitParsedBinding(0, "env", enterEnv, false, envTypeName));
@@ -235,7 +242,7 @@ export function generateReplaySource(
   }
 
   if (exitEnvKeys.length > 0)  {
-    lines.push(`// env after mutation`);
+    lines.push(emitAnnotation(0, "env after mutation"));
     if (envObjectNeeded) {
       const envTypeName = useTypeNames ? buildObjectTypeName(exitEnvKeys, exitEnvTypeMap) : undefined;
       lines.push(emitParsedBinding(0, "expectedEnv", exitEnv, false, envTypeName));
@@ -247,7 +254,11 @@ export function generateReplaySource(
     }
   }
 
+  // mock section
   const childInvocations = triple.call?.childInvocations ?? [];
+  if (childInvocations.length !== 0) {
+    lines.push(emitAnnotation(0, "mock child invocations"));
+  }
   childInvocations.forEach((child) => {
     const childTriple = findCallTripleById(child.callId, index);
     if (childTriple) {
@@ -259,8 +270,10 @@ export function generateReplaySource(
     }
   });
 
+  // replay core section
+  lines.push(emitAnnotation(0, "main replay logic"));
   lines.push(`export function replay_wrapper(): boolean {`);
-  lines.push(`  // args`);
+  lines.push(emitAnnotation(2, "args"));
   args.forEach((arg, idx) => {
     const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
     lines.push(emitParsedBinding(2, `arg${idx}`, arg, false, argType));
@@ -287,6 +300,7 @@ export function generateReplaySource(
     callExpr = `thisObj.${fnName}(${argList})`;
   }
 
+  // return section
   const outcome = exit?.outcome;
   if (outcome?.kind === "throw") {
     if (useTypeNames) {
@@ -314,11 +328,12 @@ export function generateReplaySource(
     lines.push(`  ${callExpr};`);
   }
 
+  // env compare section
   if (enterEnvKeys.length !== exitEnvKeys.length) {
     throw Error("Error: replay with enter and exit env of different length");
   }
   if (enterEnvKeys.length > 0) {
-    lines.push(`  // env mutation comparison`);
+    lines.push(emitAnnotation(2, "env mutation comparison"));
     if (envObjectNeeded) {
       const actualEntries = enterEnvKeys.map((key) => {
         if (isValidIdentifier(key)) return key;
@@ -327,7 +342,6 @@ export function generateReplaySource(
       });
       const actualEnvExpr = `{ ${actualEntries.join(", ")} }`;
       const actualEnvTypeName = useTypeNames ? buildObjectTypeName(enterEnvKeys, enterEnvTypeMap) : undefined;
-      lines.push(`  // env check`);
       lines.push(emitBinding(2, "actualEnv", actualEnvExpr, false, actualEnvTypeName));
       lines.push(`  if (JSON.stringify(actualEnv) !== JSON.stringify(expectedEnv)) return false;`);
     } else {
@@ -336,6 +350,8 @@ export function generateReplaySource(
       });
     }
   }
+
+  // end of replay section
   lines.push(`  return true;`);
   lines.push(`}`);
 

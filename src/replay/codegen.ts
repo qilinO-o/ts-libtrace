@@ -15,6 +15,38 @@ const normalizeTypeName = (typeName: string | undefined): string | undefined => 
 const getIndexedTypeName = (typeNames: string[] | undefined, index: number): string | undefined =>
   normalizeTypeName(typeNames?.[index]);
 
+const buildTypeMap = (
+  keys: string[],
+  typeNames: string[] | undefined
+): Map<string, string | undefined> => {
+  const typeMap = new Map<string, string | undefined>();
+  keys.forEach((key, index) => {
+    typeMap.set(key, normalizeTypeName(typeNames?.[index]));
+  });
+  return typeMap;
+};
+
+const buildObjectTypeName = (
+  keys: string[],
+  typeMap: Map<string, string | undefined> | undefined
+): string | undefined => {
+  if (!typeMap || keys.length === 0) return undefined;
+  const props = keys.map((key) => {
+    const propType = typeMap.get(key) ?? "unknown";
+    const propName = isValidIdentifier(key) ? key : JSON.stringify(key);
+    return `${propName}: ${propType}`;
+  });
+  return `{ ${props.join("; ")} }`;
+};
+
+const getTypeFromMap = (
+  typeMap: Map<string, string | undefined> | undefined,
+  key: string
+): string | undefined => {
+  if (!typeMap) return undefined;
+  return typeMap.get(key) ?? undefined;
+};
+
 const emitBinding = (
   indent: number,
   name: string,
@@ -165,10 +197,14 @@ export function generateReplaySource(
   }
 
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
-  const env = isPlainObject(enter?.env) ? (enter?.env as Record<string, unknown>) : {};
+  const enterEnv = isPlainObject(enter?.env) ? (enter?.env as Record<string, unknown>) : {};
+  const exitEnv = isPlainObject(exit?.env) ? (exit?.env as Record<string, unknown>) : {};
   const thisArg = enter?.thisArg ?? null;
   const argTypes = useTypeNames ? enter?.argsTypes : undefined;
-  const envTypes = useTypeNames ? enter?.envTypes : undefined;
+  const enterEnvTypes = useTypeNames ? enter?.envTypes : undefined;
+  const exitEnvTypes = useTypeNames ? exit?.envTypes : undefined;
+  const enterEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(enterEnv), enterEnvTypes) : undefined;
+  const exitEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(exitEnv), exitEnvTypes) : undefined;
   const thisArgTypeName = useTypeNames ? normalizeTypeName(enter?.thisArgTypes?.[0]) : undefined;
   const outcomeTypes = useTypeNames ? exit?.outcomeTypes : undefined;
   const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
@@ -180,29 +216,34 @@ export function generateReplaySource(
     lines.push("");
   }
 
-  const envKeys = Object.keys(env);
-  if (envKeys.length > 0)  {
+  const enterEnvKeys = Object.keys(enterEnv);
+  const exitEnvKeys = Object.keys(exitEnv);
+  const enterEnvObjectNeeded = enterEnvKeys.some((key) => !isValidIdentifier(key));
+  const exitEnvObjectNeeded = exitEnvKeys.some((key) => !isValidIdentifier(key));
+  const envObjectNeeded = enterEnvObjectNeeded || exitEnvObjectNeeded;
+  if (enterEnvKeys.length > 0)  {
     lines.push(`// env`);
-    let envObjectNeeded = false;
-    envKeys.forEach((key, index) => {
-      if (isValidIdentifier(key)) {
-        const envType = useTypeNames ? getIndexedTypeName(envTypes, index) ?? "unknown" : undefined;
-        lines.push(emitParsedBinding(0, key, env[key], true, envType));
-      } else {
-        envObjectNeeded = true;
-      }
-    });
     if (envObjectNeeded) {
-      let envTypeName: string | undefined = undefined;
-      if (useTypeNames) {
-        const propTypes = envKeys.map((key, index) => {
-          const propType = getIndexedTypeName(envTypes, index) ?? "unknown";
-          const propName = isValidIdentifier(key) ? key : JSON.stringify(key);
-          return `${propName}: ${propType}`;
-        });
-        envTypeName = `{ ${propTypes.join("; ")} }`;
-      }
-      lines.push(emitParsedBinding(0, "env", env, false, envTypeName));
+      const envTypeName = useTypeNames ? buildObjectTypeName(enterEnvKeys, enterEnvTypeMap) : undefined;
+      lines.push(emitParsedBinding(0, "env", enterEnv, false, envTypeName));
+    } else {
+      enterEnvKeys.forEach((key) => {
+        const envType = useTypeNames ? getTypeFromMap(enterEnvTypeMap, key) ?? "unknown" : undefined;
+        lines.push(emitParsedBinding(0, key, enterEnv[key], true, envType));
+      });
+    }
+  }
+
+  if (exitEnvKeys.length > 0)  {
+    lines.push(`// env after mutation`);
+    if (envObjectNeeded) {
+      const envTypeName = useTypeNames ? buildObjectTypeName(exitEnvKeys, exitEnvTypeMap) : undefined;
+      lines.push(emitParsedBinding(0, "expectedEnv", exitEnv, false, envTypeName));
+    } else {
+      exitEnvKeys.forEach((key) => {
+        const envType = useTypeNames ? getTypeFromMap(exitEnvTypeMap, key) ?? "unknown" : undefined;
+        lines.push(emitParsedBinding(0, `expected_${key}`, exitEnv[key], false, envType));
+      });
     }
   }
 
@@ -273,7 +314,28 @@ export function generateReplaySource(
     lines.push(`  ${callExpr};`);
   }
 
-  lines.push(`  // TODO: compare env mutations if needed`);
+  if (enterEnvKeys.length !== exitEnvKeys.length) {
+    throw Error("Error: replay with enter and exit env of different length");
+  }
+  if (enterEnvKeys.length > 0) {
+    lines.push(`  // env mutation comparison`);
+    if (envObjectNeeded) {
+      const actualEntries = enterEnvKeys.map((key) => {
+        if (isValidIdentifier(key)) return key;
+        const literal = JSON.stringify(key);
+        return `${literal}: env[${literal}]`;
+      });
+      const actualEnvExpr = `{ ${actualEntries.join(", ")} }`;
+      const actualEnvTypeName = useTypeNames ? buildObjectTypeName(enterEnvKeys, enterEnvTypeMap) : undefined;
+      lines.push(`  // env check`);
+      lines.push(emitBinding(2, "actualEnv", actualEnvExpr, false, actualEnvTypeName));
+      lines.push(`  if (JSON.stringify(actualEnv) !== JSON.stringify(expectedEnv)) return false;`);
+    } else {
+      enterEnvKeys.forEach((key) => {
+        lines.push(`  if (JSON.stringify(${key}) !== JSON.stringify(expected_${key})) return false;`);
+      });
+    }
+  }
   lines.push(`  return true;`);
   lines.push(`}`);
 

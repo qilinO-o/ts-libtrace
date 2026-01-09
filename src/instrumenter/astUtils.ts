@@ -2,17 +2,21 @@ import path from "node:path";
 import ts from "typescript";
 
 export const getFunctionName = (node: ts.FunctionLikeDeclarationBase): string | undefined => {
-  if (
-    (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) &&
-    node.name &&
-    ts.isIdentifier(node.name)
-  ) {
-    return node.name.text;
+  if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+    if (node.name && ts.isIdentifier(node.name)) {
+      return node.name.text;
+    }
+    if (node.modifiers && node.modifiers.some(m => m.kind === ts.SyntaxKind.DefaultKeyword)) {
+      return "default";
+    }
   }
 
   if ((ts.isFunctionExpression(node) || ts.isArrowFunction(node)) && node.parent) {
     if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) {
       return node.parent.name.text;
+    }
+    if (ts.isExportAssignment(node.parent)) {
+      return "default";
     }
   }
 

@@ -28,3 +28,9 @@ math.chained(2, 3);
 const i1 = new math.INum(1, 2);
 const i2 = new math.INum(3, 4);
 math.iAdd(i1, i2);
+
+math.default()
+
+const { default: myMath } = math;
+
+myMath();

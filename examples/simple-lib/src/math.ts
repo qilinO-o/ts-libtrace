@@ -55,3 +55,7 @@ export class INum {
 export function iAdd(a: INum, b: INum): INum {
   return new INum(a.i + b.i, a.r + b.r);
 }
+
+export default function myMath(): number {
+  return 42;
+}

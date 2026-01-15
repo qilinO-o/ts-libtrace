@@ -37,7 +37,10 @@ const shouldProcessFile = (fileName: string, allIncludes?: string[], allExcludes
   return true;
 }
 
-export function createInstrumenter(options: InstrumenterOptions): ts.TransformerFactory<ts.SourceFile> {
+export function createInstrumenter(
+  options: InstrumenterOptions,
+  typeChecker: ts.TypeChecker
+): ts.TransformerFactory<ts.SourceFile> {
   const includePatterns = options.include && options.include.length > 0 ? options.include : undefined;
   const excludePatterns = options.exclude && options.exclude.length > 0 ? options.exclude : undefined;
   const allIncludes = collectMatches(includePatterns, options.projectRoot);
@@ -45,7 +48,7 @@ export function createInstrumenter(options: InstrumenterOptions): ts.Transformer
   return (context) => {
     return (sourceFile) => {
       if (shouldProcessFile(sourceFile.fileName, allIncludes, allExcludes)) {
-        return transformSourceFile(context, sourceFile, options);
+        return transformSourceFile(context, sourceFile, options, typeChecker);
       } else {
         return sourceFile;
       }

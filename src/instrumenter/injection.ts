@@ -93,7 +93,8 @@ export function ensureTraceImport(
 export function instrumentFunctionBody(
   node: ts.FunctionLikeDeclarationBase,
   factory: ts.NodeFactory,
-  fnIdStruct: FunctionIdStruct
+  fnIdStruct: FunctionIdStruct,
+  typeChecker: ts.TypeChecker
 ): ts.FunctionLikeDeclarationBase {
   const fnIdString = functionIdToString(fnIdStruct);
   const freeVarNames = collectFreeVariableNames(node);

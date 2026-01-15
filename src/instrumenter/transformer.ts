@@ -7,7 +7,8 @@ import { ensureTraceImport, instrumentFunctionBody } from "./injection.js";
 export function transformSourceFile(
   context: ts.TransformationContext,
   sourceFile: ts.SourceFile,
-  options: InstrumenterOptions
+  options: InstrumenterOptions,
+  typeChecker: ts.TypeChecker
 ): ts.SourceFile {
   const factory = context.factory;
   const selectorCtx: SelectorContext = { sourceFile };
@@ -22,7 +23,7 @@ export function transformSourceFile(
     ) {
       if (isTopLevelTraceTarget(node, selectorCtx)) {
         const fnId = buildFunctionIdStruct(node, sourceFile, options.projectRoot);
-        return instrumentFunctionBody(node, factory, fnId);
+        return instrumentFunctionBody(node, factory, fnId, typeChecker);
       }
       return ts.visitEachChild(node, visitor, context);
     }

@@ -58,13 +58,15 @@ export const registerInstrumentCommand = (program: Command): Command => {
         }
       });
 
+      const typeChecker = program.getTypeChecker();
+
       const emitResult = program.emit(
         undefined,
         undefined,
         undefined,
         undefined,
         {
-          before: [createInstrumenter(instrumenterOptions)]
+          before: [createInstrumenter(instrumenterOptions, typeChecker)]
         }
       );
 

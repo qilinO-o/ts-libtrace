@@ -11,11 +11,114 @@ const createConst = (factory: ts.NodeFactory, name: string, initializer: ts.Expr
     )
   );
 
+const createStringArrayLiteral = (factory: ts.NodeFactory, values: string[]): ts.ArrayLiteralExpression =>
+  factory.createArrayLiteralExpression(
+    values.map((value) => factory.createStringLiteral(value)),
+    false
+  );
+
+const isTypeNodeKind = (kind: ts.SyntaxKind): boolean =>
+  kind >= ts.SyntaxKind.FirstTypeNode && kind <= ts.SyntaxKind.LastTypeNode;
+
+const isShorthandProperty = (node: ts.Identifier): boolean =>
+  ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node;
+
+const isPropertyNamePosition = (node: ts.Identifier): boolean => {
+  const parent = node.parent;
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) {
+    return true;
+  }
+  if (ts.isPropertyAssignment(parent) && parent.name === node && !isShorthandProperty(node)) {
+    return true;
+  }
+  return false;
+};
+
+const isCallLikeCallee = (node: ts.Identifier): boolean => {
+  const parent = node.parent;
+  return (
+    (ts.isCallExpression(parent) && parent.expression === node) ||
+    (ts.isNewExpression(parent) && parent.expression === node)
+  );
+};
+
+const typeToString = (typeChecker: ts.TypeChecker, type: ts.Type | undefined): string => {
+  if (!type) {
+    return "unknown";
+  }
+  return typeChecker.typeToString(type, undefined, ts.TypeFormatFlags.NoTruncation);
+};
+
+const getThisArgTypeName = (
+  node: ts.FunctionLikeDeclarationBase,
+  typeChecker: ts.TypeChecker
+): string => {
+  if (ts.isMethodDeclaration(node) || ts.isConstructorDeclaration(node)) {
+    return typeToString(typeChecker, typeChecker.getTypeAtLocation(node.parent));
+  }
+  return "undefined";
+};
+
+const getReturnTypeName = (
+  node: ts.FunctionLikeDeclarationBase,
+  typeChecker: ts.TypeChecker
+): string => {
+  const signature = typeChecker.getSignatureFromDeclaration(node as ts.SignatureDeclaration);
+  if (!signature) {
+    return "unknown";
+  }
+  return typeToString(typeChecker, typeChecker.getReturnTypeOfSignature(signature));
+};
+
+const getParamTypeNames = (
+  node: ts.FunctionLikeDeclarationBase,
+  typeChecker: ts.TypeChecker
+): string[] =>
+  node.parameters.map((param) => typeToString(typeChecker, typeChecker.getTypeAtLocation(param)));
+
+const getEnvTypeNames = (
+  node: ts.FunctionLikeDeclarationBase,
+  freeVarNames: string[],
+  typeChecker: ts.TypeChecker
+): string[] => {
+  if (!node.body || freeVarNames.length === 0) {
+    return [];
+  }
+
+  const remaining = new Set(freeVarNames);
+  const types = new Map<string, string>();
+
+  const visit = (visitNode: ts.Node): void => {
+    if (remaining.size === 0) {
+      return;
+    }
+    if (isTypeNodeKind(visitNode.kind)) {
+      return;
+    }
+    if (ts.isIdentifier(visitNode)) {
+      const name = visitNode.text;
+      if (remaining.has(name) && !isPropertyNamePosition(visitNode) && !isCallLikeCallee(visitNode)) {
+        const type = typeChecker.getTypeAtLocation(visitNode);
+        types.set(name, typeToString(typeChecker, type));
+        remaining.delete(name);
+      }
+    }
+
+    ts.forEachChild(visitNode, visit);
+  };
+
+  visit(node.body);
+
+  return freeVarNames.map((name) => types.get(name) ?? "unknown");
+};
+
 const createExitCall = (
   factory: ts.NodeFactory,
   kind: "return" | "throw",
   valueIdentifier: string,
-  envExpression: ts.ObjectLiteralExpression
+  envExpression: ts.ObjectLiteralExpression,
+  outcomeTypeNames: string[],
+  envTypeNames: string[]
 ): ts.Statement => {
   const outcomeProps =
     kind === "return"
@@ -36,7 +139,9 @@ const createExitCall = (
         factory.createIdentifier("__fnId"),
         factory.createIdentifier("__callId"),
         factory.createObjectLiteralExpression(outcomeProps, true),
-        envExpression
+        envExpression,
+        createStringArrayLiteral(factory, outcomeTypeNames),
+        createStringArrayLiteral(factory, envTypeNames)
       ]
     )
   );
@@ -98,6 +203,10 @@ export function instrumentFunctionBody(
 ): ts.FunctionLikeDeclarationBase {
   const fnIdString = functionIdToString(fnIdStruct);
   const freeVarNames = collectFreeVariableNames(node);
+  const thisArgTypeNames = [getThisArgTypeName(node, typeChecker)];
+  const argsTypeNames = getParamTypeNames(node, typeChecker);
+  const envTypeNames = getEnvTypeNames(node, freeVarNames, typeChecker);
+  const outcomeTypeNames = [getReturnTypeName(node, typeChecker), "unknown"];
   const envExpression =
     freeVarNames.length === 0
       ? factory.createObjectLiteralExpression([], true)
@@ -145,8 +254,14 @@ export function instrumentFunctionBody(
         factory.createObjectLiteralExpression(
           [
             factory.createPropertyAssignment("thisArg", thisArgExpr),
+            factory.createPropertyAssignment(
+              "thisArgTypes",
+              createStringArrayLiteral(factory, thisArgTypeNames)
+            ),
             factory.createPropertyAssignment("args", argsExpression),
-            factory.createPropertyAssignment("env", envExpression)
+            factory.createPropertyAssignment("argsTypes", createStringArrayLiteral(factory, argsTypeNames)),
+            factory.createPropertyAssignment("env", envExpression),
+            factory.createPropertyAssignment("envTypes", createStringArrayLiteral(factory, envTypeNames))
           ],
           true
         )
@@ -161,7 +276,7 @@ export function instrumentFunctionBody(
     if (ts.isReturnStatement(stmt)) {
       const initializer = stmt.expression ?? factory.createVoidZero();
       const retConst = createConst(factory, "__ret", initializer);
-      const exitStmt = createExitCall(factory, "return", "__ret", envExpression);
+      const exitStmt = createExitCall(factory, "return", "__ret", envExpression, outcomeTypeNames, envTypeNames);
       const returnStmt = factory.createReturnStatement(factory.createIdentifier("__ret"));
 
       rewrittenStatements.push(retConst, exitStmt, returnStmt);
@@ -173,9 +288,12 @@ export function instrumentFunctionBody(
 
   if (!if_make_exit) {
     const exitStmt = createExitCall(
-      factory, "return", 
-      (fnIdStruct.className && fnIdStruct.name === "constructor" ? "this" : "undefined"), 
-      envExpression
+      factory,
+      "return",
+      (fnIdStruct.className && fnIdStruct.name === "constructor" ? "this" : "undefined"),
+      envExpression,
+      outcomeTypeNames,
+      envTypeNames
     );
     rewrittenStatements.push(exitStmt);
   }
@@ -184,7 +302,7 @@ export function instrumentFunctionBody(
     factory.createVariableDeclaration(factory.createIdentifier("__err")),
     factory.createBlock(
       [
-        createExitCall(factory, "throw", "__err", envExpression),
+        createExitCall(factory, "throw", "__err", envExpression, outcomeTypeNames, envTypeNames),
         factory.createThrowStatement(factory.createIdentifier("__err"))
       ],
       true

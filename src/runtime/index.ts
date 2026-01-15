@@ -105,7 +105,10 @@ const popCall = (): Invocation[] => {
 };
 
 export const __trace = {
-  enter(fnId: string, data: { thisArg: any; args: any; env: any }): string {
+  enter(
+    fnId: string,
+    data: { thisArg: any; args: any; env: any; thisArgTypes: string[]; argsTypes: string[]; envTypes: string[] }
+  ): string {
     const callId = genCallId();
     pushCall({fnId, callId});
     const env = data.env;
@@ -116,11 +119,11 @@ export const __trace = {
       fnId,
       callId,
       thisArg,
-      thisArgTypes: [getTypeName(thisArg)],
+      thisArgTypes: data.thisArgTypes,
       args,
-      argsTypes: getArgTypeNames(args),
+      argsTypes: data.argsTypes,
       env,
-      envTypes: getEnvTypeNames(env)
+      envTypes: data.envTypes
     };
 
     writeEvent(event);
@@ -130,7 +133,9 @@ export const __trace = {
     fnId: string,
     callId: string,
     outcome: { kind: "return" | "throw"; value?: any; error?: any },
-    env: any
+    env: any,
+    outcomeTypes: string[],
+    envTypes: string[]
   ): void {
     const childInvocations = popCall();
     const envValue = env;
@@ -151,9 +156,9 @@ export const __trace = {
         value: outcome.value,
         error: outcome.error
       },
-      outcomeTypes: [getTypeName(outcome.value), getTypeName(outcome.error)],
+      outcomeTypes,
       env: envValue,
-      envTypes: getEnvTypeNames(envValue)
+      envTypes
     };
 
     writeEvent(callEvent);

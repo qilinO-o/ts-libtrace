@@ -211,7 +211,7 @@ export function generateReplaySource(
   const exitEnvTypes = useTypeNames ? exit?.envTypes : undefined;
   const enterEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(enterEnv), enterEnvTypes) : undefined;
   const exitEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(exitEnv), exitEnvTypes) : undefined;
-  const thisArgTypeName = useTypeNames ? normalizeTypeName(enter?.thisArgTypes?.[0]) : undefined;
+  const thisArgTypeName = useTypeNames ? normalizeTypeName(enter?.thisArgType) : undefined;
   const outcomeTypes = useTypeNames ? exit?.outcomeTypes : undefined;
   const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
 

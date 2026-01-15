@@ -107,23 +107,25 @@ const popCall = (): Invocation[] => {
 export const __trace = {
   enter(
     fnId: string,
-    data: { thisArg: any; args: any; env: any; thisArgTypes: string[]; argsTypes: string[]; envTypes: string[] }
+    thisArg: any,
+    args: any,
+    env: any,
+    thisArgType: string,
+    argsTypes: string[],
+    envTypes: string[]
   ): string {
     const callId = genCallId();
     pushCall({fnId, callId});
-    const env = data.env;
-    const args = data.args;
-    const thisArg = data.thisArg;
     const event: EnterEvent = {
       type: "enter",
       fnId,
       callId,
       thisArg,
-      thisArgTypes: data.thisArgTypes,
+      thisArgType,
       args,
-      argsTypes: data.argsTypes,
+      argsTypes,
       env,
-      envTypes: data.envTypes
+      envTypes
     };
 
     writeEvent(event);

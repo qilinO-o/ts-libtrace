@@ -42,11 +42,20 @@ const isCallLikeCallee = (node: ts.Identifier): boolean => {
   );
 };
 
+const typeFormatFlag = 
+  ts.TypeFormatFlags.NoTruncation |
+  ts.TypeFormatFlags.WriteArrayAsGenericType |
+  ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
+
 const typeToString = (typeChecker: ts.TypeChecker, type: ts.Type | undefined): string => {
   if (!type) {
     return "unknown";
   }
-  return typeChecker.typeToString(type, undefined, ts.TypeFormatFlags.NoTruncation);
+  return typeChecker.typeToString(
+    typeChecker.getBaseTypeOfLiteralType(type),
+    undefined,
+    typeFormatFlag
+  );
 };
 
 const getThisArgTypeName = (
@@ -147,6 +156,30 @@ const createExitCall = (
   );
 };
 
+const createEnterCall = (
+  factory: ts.NodeFactory,
+  thisArgExpression: ts.Expression,
+  thisArgTypeName: string,
+  argsExpression: ts.Expression,
+  argsTypeNames: string[],
+  envExpression: ts.ObjectLiteralExpression,
+  envTypeNames: string[]
+): ts.Expression => {
+  return factory.createCallExpression(
+    factory.createPropertyAccessExpression(factory.createIdentifier("__trace"), "enter"),
+    undefined,
+    [
+      factory.createIdentifier("__fnId"),
+      thisArgExpression,
+      argsExpression,
+      envExpression,
+      factory.createStringLiteral(thisArgTypeName),
+      createStringArrayLiteral(factory, argsTypeNames),
+      createStringArrayLiteral(factory, envTypeNames)
+    ]
+  );
+};
+
 export function ensureTraceImport(
   sourceFile: ts.SourceFile,
   factory: ts.NodeFactory,
@@ -203,7 +236,7 @@ export function instrumentFunctionBody(
 ): ts.FunctionLikeDeclarationBase {
   const fnIdString = functionIdToString(fnIdStruct);
   const freeVarNames = collectFreeVariableNames(node);
-  const thisArgTypeNames = [getThisArgTypeName(node, typeChecker)];
+  const thisArgTypeName = getThisArgTypeName(node, typeChecker);
   const argsTypeNames = getParamTypeNames(node, typeChecker);
   const envTypeNames = getEnvTypeNames(node, freeVarNames, typeChecker);
   const outcomeTypeNames = [getReturnTypeName(node, typeChecker), "unknown"];
@@ -246,26 +279,14 @@ export function instrumentFunctionBody(
   const callIdConst = createConst(
     factory,
     "__callId",
-    factory.createCallExpression(
-      factory.createPropertyAccessExpression(factory.createIdentifier("__trace"), "enter"),
-      undefined,
-      [
-        factory.createIdentifier("__fnId"),
-        factory.createObjectLiteralExpression(
-          [
-            factory.createPropertyAssignment("thisArg", thisArgExpr),
-            factory.createPropertyAssignment(
-              "thisArgTypes",
-              createStringArrayLiteral(factory, thisArgTypeNames)
-            ),
-            factory.createPropertyAssignment("args", argsExpression),
-            factory.createPropertyAssignment("argsTypes", createStringArrayLiteral(factory, argsTypeNames)),
-            factory.createPropertyAssignment("env", envExpression),
-            factory.createPropertyAssignment("envTypes", createStringArrayLiteral(factory, envTypeNames))
-          ],
-          true
-        )
-      ]
+    createEnterCall(
+      factory,
+      thisArgExpr,
+      thisArgTypeName,
+      argsExpression,
+      argsTypeNames,
+      envExpression,
+      envTypeNames
     )
   );
 
@@ -276,7 +297,14 @@ export function instrumentFunctionBody(
     if (ts.isReturnStatement(stmt)) {
       const initializer = stmt.expression ?? factory.createVoidZero();
       const retConst = createConst(factory, "__ret", initializer);
-      const exitStmt = createExitCall(factory, "return", "__ret", envExpression, outcomeTypeNames, envTypeNames);
+      const exitStmt = createExitCall(
+        factory,
+        "return",
+        "__ret",
+        envExpression,
+        outcomeTypeNames,
+        envTypeNames
+      );
       const returnStmt = factory.createReturnStatement(factory.createIdentifier("__ret"));
 
       rewrittenStatements.push(retConst, exitStmt, returnStmt);
@@ -302,7 +330,14 @@ export function instrumentFunctionBody(
     factory.createVariableDeclaration(factory.createIdentifier("__err")),
     factory.createBlock(
       [
-        createExitCall(factory, "throw", "__err", envExpression, outcomeTypeNames, envTypeNames),
+        createExitCall(
+          factory,
+          "throw",
+          "__err",
+          envExpression,
+          outcomeTypeNames,
+          envTypeNames
+        ),
         factory.createThrowStatement(factory.createIdentifier("__err"))
       ],
       true

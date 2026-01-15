@@ -3,7 +3,7 @@ export interface EnterEvent {
   fnId: string;
   callId: string;
   thisArg: any;
-  thisArgTypes: string[];
+  thisArgType: string;
   args: any;
   argsTypes: string[];
   env: any;

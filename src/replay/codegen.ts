@@ -155,6 +155,7 @@ export function generateMockSource(triple: CallTriple, useTypeNames = false): st
   const lines: string[] = [];
   let classIndent = "";
   if (className !== "-") {
+    if (useTypeNames) lines.push("@json");
     lines.push(`class ${className} {`);
     classIndent = "  ";
   }

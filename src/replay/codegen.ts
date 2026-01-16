@@ -133,7 +133,7 @@ const extractFnInfo = (fnId: string): { className?: string; fnName?: string } =>
   };
 };
 
-export function generateMockSource(triple: CallTriple, useTypeNames = false): string {
+export function generateMockSource(triple: CallTriple, useTypeNames = false, inferTypedTriple: CallTriple): string {
   const enter = triple.enter;
   const exit = triple.exit;
   const fnId = enter?.fnId;
@@ -147,7 +147,7 @@ export function generateMockSource(triple: CallTriple, useTypeNames = false): st
 
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
   const outcome = exit?.outcome;
-  const argTypes = useTypeNames ? enter?.argsTypes : undefined;
+  const argTypes = useTypeNames ? inferTypedTriple.enter?.argsTypes : undefined;
   const params = args
     .map((_, idx) => `arg${idx}${useTypeNames ? `: ${getIndexedTypeName(argTypes, idx) ?? "unknown"}` : ""}`)
     .join(", ");
@@ -187,7 +187,8 @@ export function generateMockSource(triple: CallTriple, useTypeNames = false): st
 export function generateReplaySource(
   triple: CallTriple,
   index: ReplayIndex,
-  useTypeNames = false
+  useTypeNames = false,
+  inferTypedTriple: CallTriple | undefined
 ): string {
   const enter = triple.enter;
   const exit = triple.exit;
@@ -202,17 +203,19 @@ export function generateReplaySource(
     throw Error("Error: replay with bad fnId");
   }
 
+  if (inferTypedTriple === undefined) inferTypedTriple = triple;
+
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
   const enterEnv = isPlainObject(enter?.env) ? (enter?.env as Record<string, unknown>) : {};
   const exitEnv = isPlainObject(exit?.env) ? (exit?.env as Record<string, unknown>) : {};
   const thisArg = enter?.thisArg ?? null;
-  const argTypes = useTypeNames ? enter?.argsTypes : undefined;
-  const enterEnvTypes = useTypeNames ? enter?.envTypes : undefined;
-  const exitEnvTypes = useTypeNames ? exit?.envTypes : undefined;
+  const argTypes = useTypeNames ? inferTypedTriple.enter?.argsTypes : undefined;
+  const enterEnvTypes = useTypeNames ? inferTypedTriple.enter?.envTypes : undefined;
+  const exitEnvTypes = useTypeNames ? inferTypedTriple.exit?.envTypes : undefined;
   const enterEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(enterEnv), enterEnvTypes) : undefined;
   const exitEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(exitEnv), exitEnvTypes) : undefined;
-  const thisArgTypeName = useTypeNames ? normalizeTypeName(enter?.thisArgType) : undefined;
-  const outcomeTypes = useTypeNames ? exit?.outcomeTypes : undefined;
+  const thisArgTypeName = useTypeNames ? normalizeTypeName(inferTypedTriple.enter?.thisArgType) : undefined;
+  const outcomeTypes = useTypeNames ? inferTypedTriple.exit?.outcomeTypes : undefined;
   const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
 
   // import section
@@ -263,7 +266,7 @@ export function generateReplaySource(
   childInvocations.forEach((child) => {
     const childTriple = findCallTripleById(child.callId, index);
     if (childTriple) {
-      const mockSource = generateMockSource(childTriple, useTypeNames);
+      const mockSource = generateMockSource(childTriple, useTypeNames, inferTypedTriple);
       if (mockSource.length > 0) {
         lines.push(mockSource);
         lines.push("");

@@ -3,6 +3,8 @@ import path from "node:path";
 import { ensureReplayIndex } from "./indexStore.js";
 import { generateReplaySource } from "./codegen.js";
 import { groupEventsToCallTriples, readTraceFile } from "./traceReader.js";
+import { inferCallTripleTypes } from "./typeInfer.js"
+import { CallTriple } from "./types.js"
 
 const safeSegment = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, "_");
 
@@ -12,6 +14,7 @@ export function runReplay(traceFile: string, outDir: string, useTypeNames = fals
 
   const events = readTraceFile(traceFile);
   const triples = groupEventsToCallTriples(events);
+  const inferTypedTriple = useTypeNames ? inferCallTripleTypes(triples) : undefined;
 
   console.log(
     `Replaying trace file ${traceFile}\n\t-> ${triples.length} invocations\n\tTo outDir=${outDir})`
@@ -34,7 +37,7 @@ export function runReplay(traceFile: string, outDir: string, useTypeNames = fals
     const filePath = path.join(outDir, fileName);
 
     try {
-      const source = generateReplaySource(triple, index, useTypeNames);
+      const source = generateReplaySource(triple, index, useTypeNames, inferTypedTriple);
       fs.writeFileSync(filePath, source, "utf8");
       generatedFiles.push(filePath);
     } catch (err) {

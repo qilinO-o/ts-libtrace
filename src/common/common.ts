@@ -1,0 +1,1 @@
+export const safeSegment = (segment: string): string => segment.replace(/[^a-zA-Z0-9._-]/g, "_");

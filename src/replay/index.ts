@@ -4,8 +4,7 @@ import { ensureReplayIndex } from "./indexStore.js";
 import { generateReplaySource } from "./codegen.js";
 import { groupEventsToCallTriples, readTraceFile } from "./traceReader.js";
 import { inferCallTripleTypes } from "./typeInfer.js"
-
-const safeSegment = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, "_");
+import { safeSegment } from "../common/common.js"
 
 export function runReplay(traceFile: string, outDir: string, useTypeNames = false): void {
   const traceDir = path.dirname(traceFile);

@@ -5,6 +5,7 @@ import {
   getLineAndCharacter,
   getRelativeFilePath
 } from "./astUtils.js";
+import { safeSegment } from "../common/common.js"
 
 export interface FunctionIdStruct {
   relFilePath: string;
@@ -30,8 +31,6 @@ export function buildFunctionIdStruct(
 export function functionIdToString(id: FunctionIdStruct): string {
   return `${id.relFilePath}#${id.className ?? "-"}#${id.name}#L${id.line}C${id.character}`;
 }
-
-const safeSegment = (segment: string): string => segment.replace(/[^a-zA-Z0-9._-]/g, "_");
 
 export function functionIdToTraceFileName(id: FunctionIdStruct): string {
   const safeRelPath = safeSegment(id.relFilePath.replace(/[\\/]/g, "__"));

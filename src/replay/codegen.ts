@@ -345,7 +345,7 @@ export function generateReplaySource(
   const argList = args.map((_, idx) => `arg${idx}`).join(", ");
 
   let callExpr = `${fnName}(${argList})`;
-  if (className && className !== "-") {
+  if (className && className !== "-" && fnName !== "constructor") {
     if (useTypeNames) {
       const fallback = normalizeTypeName(className) ?? "unknown";
       const typeName = thisArgTypeName ?? fallback;
@@ -363,6 +363,10 @@ export function generateReplaySource(
     callExpr = `thisObj.${fnName}(${argList})`;
   }
 
+  if (className && className !== "-" && fnName === "constructor") {
+    callExpr = `new ${className}(${argList})`;
+  }
+
   // return section
   const outcome = exit?.outcome;
   if (outcome?.kind === "throw") {
@@ -377,7 +381,7 @@ export function generateReplaySource(
     lines.push(`    threw = true;`);
     lines.push(`  }`);
     lines.push(`  if (!threw) return false;`);
-  } else if (outcome?.kind === "return") {
+  } else if (outcome?.kind === "return" && outcomeTypes?.at(0) !== "void") {
     if (useTypeNames) {
       const typeName = returnTypeName ?? "unknown";
       lines.push(emitBinding(2, "ret", callExpr, false, typeName));

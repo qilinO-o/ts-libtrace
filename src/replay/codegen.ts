@@ -76,7 +76,6 @@ const emitParsedBinding = (
   mutable: boolean,
   typeName?: string
 ): string => {
-  const indentText = " ".repeat(Math.max(0, indent));
   let rhs = undefined;
   if (value === null) rhs = "null";
   else if (value === undefined) rhs = "undefined";
@@ -88,8 +87,7 @@ const emitParsedBinding = (
     rhs = JSON.stringify(jsonString);
     rhs = typeName ? `JSON.parse<${typeName}>(${rhs})` : `JSON.parse(${rhs})`;
   }
-  const keyword = mutable ? "let" : "const";
-  return `${indentText}${keyword} ${name}${typeName ? `: ${typeName}` : ""} = ${rhs};`;
+  return emitBinding(indent, name, rhs, mutable, typeName);
 };
 
 const emitAnnotation = (indent: number, annotation: string): string => {
@@ -353,7 +351,7 @@ export function generateReplaySource(
       const typeName = thisArgTypeName ?? fallback;
       lines.push(emitBinding(2, "thisObj", `new ${className}()`, false, typeName));
     } else {
-      lines.push(`  const thisObj = new ${className}();`);
+      lines.push(emitBinding(2, "thisObj", `new ${className}()`, false, undefined));
     }
     if (thisArg && typeof thisArg === "object") {
       Object.keys(thisArg as Record<string, unknown>).forEach((key) => {
@@ -371,7 +369,7 @@ export function generateReplaySource(
     if (useTypeNames) {
       lines.push(emitBinding(2, "threw", "false", true, "boolean"));
     } else {
-      lines.push(`  let threw = false;`);
+      lines.push(emitBinding(2, "threw", "false", true, undefined));
     }
     lines.push(`  try {`);
     lines.push(`    ${callExpr};`);
@@ -385,7 +383,7 @@ export function generateReplaySource(
       lines.push(emitBinding(2, "ret", callExpr, false, typeName));
       lines.push(emitParsedBinding(2, "expected", outcome.value, false, typeName));
     } else {
-      lines.push(`  const ret = ${callExpr};`);
+      lines.push(emitBinding(2, "ret", callExpr, false, undefined));
       lines.push(emitParsedBinding(2, "expected", outcome.value, false));
     }
     lines.push(`  if (JSON.stringify(ret) !== JSON.stringify(expected)) return false;`);

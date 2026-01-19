@@ -59,3 +59,9 @@ export function iAdd(a: INum, b: INum): INum {
 export default function myMath(): number {
   return 42;
 }
+
+const bare = { x1: 1, y2: 2, z3: 3 }
+
+export function testBare() {
+  bare;
+}

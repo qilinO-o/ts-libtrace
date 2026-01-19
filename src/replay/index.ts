@@ -4,7 +4,6 @@ import { ensureReplayIndex } from "./indexStore.js";
 import { generateReplaySource } from "./codegen.js";
 import { groupEventsToCallTriples, readTraceFile } from "./traceReader.js";
 import { inferCallTripleTypes } from "./typeInfer.js"
-import { CallTriple } from "./types.js"
 
 const safeSegment = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, "_");
 

@@ -34,3 +34,5 @@ math.default()
 const { default: myMath } = math;
 
 myMath();
+
+math.testBare();

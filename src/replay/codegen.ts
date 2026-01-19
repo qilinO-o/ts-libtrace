@@ -97,7 +97,7 @@ const emitAnnotation = (indent: number, annotation: string): string => {
   return `${indentText}// ${annotation}`;
 }
 
-export function emitValueAsTsExpression(value: unknown): string {
+function emitValueAsTsExpression(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -133,7 +133,62 @@ const extractFnInfo = (fnId: string): { className?: string; fnName?: string } =>
   };
 };
 
-export function generateMockSource(triple: CallTriple, useTypeNames = false, inferTypedTriple: CallTriple): string {
+const parseBareObjectKeys = (typeName: string): string[] => {
+  return typeName
+    .replace(/^\{|\}$/g, '')
+    .trim()
+    .replace(/:[^;]+;/g, ' ')
+    .replace(/[^A-Za-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter(key => key.length > 0)
+    .map(key => key.charAt(0).toUpperCase() + key.slice(1));
+};
+
+export function extractBareClass(triple: CallTriple): Map<string, string> {
+  const bareClasses = new Map<string, string>();
+
+  const resolveTypeName = (typeName: string | undefined): string | undefined => {
+    if (!typeName) return typeName;
+    if (!typeName.startsWith("{")) {
+      return typeName;
+    }
+    const existing = bareClasses.get(typeName);
+    if (existing) {
+      return existing;
+    }
+    const keys = parseBareObjectKeys(typeName);
+    if (keys.length === 0) {
+      return typeName;
+    }
+    const suffix = keys.join("");
+    const className = `bareClass${suffix}`;
+    bareClasses.set(typeName, className);
+    return className;
+  };
+
+  if (triple.enter) {
+    triple.enter.thisArgType = resolveTypeName(triple.enter.thisArgType) ?? triple.enter.thisArgType;
+    triple.enter.argsTypes = triple.enter.argsTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+    triple.enter.envTypes = triple.enter.envTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+  }
+
+  if (triple.exit) {
+    triple.exit.outcomeTypes = triple.exit.outcomeTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+    triple.exit.envTypes = triple.exit.envTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+  }
+
+  return bareClasses;
+}
+
+function generateMockSource(triple: CallTriple, useTypeNames = false, inferTypedTriple: CallTriple): string {
   const enter = triple.enter;
   const exit = triple.exit;
   const fnId = enter?.fnId;
@@ -205,6 +260,20 @@ export function generateReplaySource(
 
   if (inferTypedTriple === undefined) inferTypedTriple = triple;
 
+  const lines: string[] = [];
+  lines.push(emitAnnotation(0, `fnId: ${fnId} callId: ${callId}`));
+  if (useTypeNames) {
+    // import section
+    lines.push("import { JSON } from \"json-as\";");
+    lines.push("");
+
+    // bare class declaration section
+    const bareClasses = extractBareClass(inferTypedTriple);
+    bareClasses.forEach((value: string, key: string) => {
+      lines.push(`class ${value} ${key};`);
+    })
+  }
+
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
   const enterEnv = isPlainObject(enter?.env) ? (enter?.env as Record<string, unknown>) : {};
   const exitEnv = isPlainObject(exit?.env) ? (exit?.env as Record<string, unknown>) : {};
@@ -217,14 +286,6 @@ export function generateReplaySource(
   const thisArgTypeName = useTypeNames ? normalizeTypeName(inferTypedTriple.enter?.thisArgType) : undefined;
   const outcomeTypes = useTypeNames ? inferTypedTriple.exit?.outcomeTypes : undefined;
   const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
-
-  // import section
-  const lines: string[] = [];
-  lines.push(emitAnnotation(0, `fnId: ${fnId} callId: ${callId}`));
-  if (useTypeNames) {
-    lines.push("import { JSON } from \"json-as\";");
-    lines.push("");
-  }
 
   // env section
   const enterEnvKeys = Object.keys(enterEnv);

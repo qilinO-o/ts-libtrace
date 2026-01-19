@@ -216,7 +216,7 @@ const formatTypeNode = (node: TypeNode): string => {
         const optional = prop.optional ? "?" : "";
         return `${prefix}${name}${optional}: ${formatTypeNode(prop.type)}`;
       });
-      return `{ ${props.join("; ")} }`;
+      return `{ ${props.join("; ")}; }`;
     }
     default:
       return "unknown";

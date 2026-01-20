@@ -44,6 +44,6 @@ export function runReplay(traceFile: string, outDir: string, useTypeNames = fals
   });
 
   if (generatedFiles.length > 0) {
-    console.log(`Generated replay files:\n${generatedFiles.join("\n")}`);
+    console.log(`Generated replay files:\n\t${generatedFiles.join("\n\t")}`);
   }
 }

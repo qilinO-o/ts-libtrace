@@ -28,7 +28,7 @@ function buildReplayIndex(dir: string): ReplayIndex {
 
   const index: ReplayIndex = {
     files: [],
-    calls: new Map()
+    calls: {}
   };
 
   files.forEach((filePath) => {
@@ -38,7 +38,7 @@ function buildReplayIndex(dir: string): ReplayIndex {
     const lines = readLines(filePath);
     lines.forEach((line, idx) => {
       const parsed = superjson.parse(line) as TraceEvent;
-      const entry = index.calls.get(parsed.callId) ?? {
+      const entry = index.calls[parsed.callId] ?? {
         callId: parsed.callId,
         fnId: parsed.fnId,
         filePath,
@@ -49,7 +49,7 @@ function buildReplayIndex(dir: string): ReplayIndex {
       entry.filePath = filePath;
       entry.lineNumbers.push(idx + 1);
 
-      index.calls.set(parsed.callId, entry);
+      index.calls[parsed.callId] = entry;
     });
   });
 
@@ -100,7 +100,7 @@ const findTripleByCallId = (events: TraceEvent[], callId: string): CallTriple | 
 };
 
 export function findCallTripleById(callId: string, index: ReplayIndex): CallTriple | undefined {
-  const entry = index.calls.get(callId);
+  const entry = index.calls[callId];
   if (!entry) {
     return undefined;
   }
@@ -122,7 +122,7 @@ export function findCallTripleById(callId: string, index: ReplayIndex): CallTrip
 }
 
 export function findAllTriplesById(callId: string, index: ReplayIndex): CallTriple[] {
-  const entry = index.calls.get(callId);
+  const entry = index.calls[callId];
   if (!entry) return [];
   const allLines = readLines(entry.filePath);
   if (allLines.length === 0) return [];

@@ -20,5 +20,5 @@ export interface CallIndexEntry {
 
 export interface ReplayIndex {
   files: TraceFileMeta[];
-  calls: Map<string, CallIndexEntry>;
+  calls: Record<string, CallIndexEntry>;
 }

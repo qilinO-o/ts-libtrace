@@ -1,4 +1,5 @@
-import { findCallTripleById } from "./indexStore.js";
+import { findCallTripleById, findAllTriplesById } from "./indexStore.js";
+import { inferCallTripleTypes } from "./typeInfer.js";
 import { CallTriple, ReplayIndex } from "./types.js";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -237,6 +238,24 @@ function generateMockSource(triple: CallTriple, useTypeNames = false, inferTyped
   return lines.join("\n");
 }
 
+function generateMockConstructor(triple: CallTriple, useTypeNames = false, inferTypedTriple: CallTriple): [string, string] {
+  const enter = triple.enter;
+  const argTypes = useTypeNames ? inferTypedTriple.enter?.argsTypes : undefined;
+
+  const lines: string[] = [];
+  lines.push(emitAnnotation(2, "constructor's args"));
+  const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
+
+  args.forEach((arg, idx) => {
+    const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
+    lines.push(emitParsedBinding(2, `carg${idx}`, arg, false, argType));
+  });
+
+  const argList = args.map((_, idx) => `carg${idx}`).join(", ");
+
+  return [lines.join("\n"), argList];
+}
+
 export function generateReplaySource(
   triple: CallTriple,
   index: ReplayIndex,
@@ -255,6 +274,9 @@ export function generateReplaySource(
   if (className === undefined || fnName === undefined) {
     throw Error("Error: replay with bad fnId");
   }
+
+  // 1 for functions, 2 for methods, 3 for constructors
+  const funcKind = (className === "-") ? 1 : (fnName === "constructor" ? 3 : 2);
 
   if (inferTypedTriple === undefined) inferTypedTriple = triple;
 
@@ -322,10 +344,16 @@ export function generateReplaySource(
   if (childInvocations.length !== 0) {
     lines.push(emitAnnotation(0, "mock child invocations"));
   }
-  childInvocations.forEach((child) => {
+
+  childInvocations.forEach((child, idx) => {
+    // skip first invocation mock(constructor) for methods
+    if (funcKind === 2 && idx === 0) return;
     const childTriple = findCallTripleById(child.callId, index);
     if (childTriple) {
-      const mockSource = generateMockSource(childTriple, useTypeNames, inferTypedTriple);
+      // typed infer of this child
+      const relatedTriples = findAllTriplesById(child.callId, index);
+      const inferRelatedTriple = useTypeNames ? inferCallTripleTypes(relatedTriples) : childTriple;
+      const mockSource = generateMockSource(childTriple, useTypeNames, inferRelatedTriple);
       if (mockSource.length > 0) {
         lines.push(mockSource);
         lines.push("");
@@ -345,13 +373,27 @@ export function generateReplaySource(
   const argList = args.map((_, idx) => `arg${idx}`).join(", ");
 
   let callExpr = `${fnName}(${argList})`;
-  if (className && className !== "-" && fnName !== "constructor") {
+  if (funcKind === 2) {
+    const constructorInvoc = childInvocations[0];
+    const constructorTriple = findCallTripleById(constructorInvoc.callId, index);
+    let constructorArgList = "";
+    let constructorArgDecl = "";
+    if (constructorTriple) {
+      const relatedTriples = constructorTriple.enter ? findAllTriplesById(constructorTriple.enter.callId, index) : [];
+      const inferRelatedTriple = useTypeNames ? inferCallTripleTypes(relatedTriples) : constructorTriple;
+
+      [constructorArgDecl, constructorArgList] = generateMockConstructor(constructorTriple, useTypeNames, inferRelatedTriple);
+      if (constructorArgDecl.length > 0) {
+        lines.push(constructorArgDecl);
+      }
+    }
+    
     if (useTypeNames) {
       const fallback = normalizeTypeName(className) ?? "unknown";
       const typeName = thisArgTypeName ?? fallback;
-      lines.push(emitBinding(2, "thisObj", `new ${className}()`, false, typeName));
+      lines.push(emitBinding(2, "thisObj", `new ${className}(${constructorArgList})`, false, typeName));
     } else {
-      lines.push(emitBinding(2, "thisObj", `new ${className}()`, false, undefined));
+      lines.push(emitBinding(2, "thisObj", `new ${className}(${constructorArgList})`, false, undefined));
     }
     if (thisArg && typeof thisArg === "object") {
       Object.keys(thisArg as Record<string, unknown>).forEach((key) => {
@@ -363,7 +405,7 @@ export function generateReplaySource(
     callExpr = `thisObj.${fnName}(${argList})`;
   }
 
-  if (className && className !== "-" && fnName === "constructor") {
+  if (funcKind === 3) {
     callExpr = `new ${className}(${argList})`;
   }
 

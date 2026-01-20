@@ -1,5 +1,8 @@
+import fs from "fs-extra";
+import path from "node:path";
 import { CallTriple } from "./types.js";
 import { EnterEvent, ExitEvent } from "../runtime/types.js";
+import { safeSegment } from "../common/common.js";
 
 type NumberKind = "i32" | "i64" | "f32" | "f64";
 
@@ -22,6 +25,7 @@ const I32_MAX = 2147483647;
 
 const NUMBER_TOKEN = /\bnumber\b/;
 const NUMBER_TOKEN_GLOBAL = /\bnumber\b/g;
+const INFER_CACHE_DIR = ".infercache";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -480,6 +484,31 @@ const getFirstEnter = (triples: CallTriple[]): EnterEvent | undefined =>
 const getFirstExit = (triples: CallTriple[]): ExitEvent | undefined =>
   triples.find((triple) => triple.exit)?.exit;
 
+const getFnIdFromTriples = (triples: CallTriple[]): string | undefined => {
+  for (const triple of triples) {
+    if (triple.enter?.fnId) return triple.enter.fnId;
+    if (triple.exit?.fnId) return triple.exit.fnId;
+  }
+  return undefined;
+};
+
+const getInferCachePath = (traceDir: string, fnId: string): string =>
+  path.join(traceDir, INFER_CACHE_DIR, `${safeSegment(fnId)}.json`);
+
+const loadInferCache = (traceDir: string, fnId: string): CallTriple | undefined => {
+  const cachePath = getInferCachePath(traceDir, fnId);
+  if (!fs.existsSync(cachePath)) {
+    return undefined;
+  }
+  return fs.readJsonSync(cachePath) as CallTriple;
+};
+
+const writeInferCache = (traceDir: string, fnId: string, triple: CallTriple): void => {
+  const cachePath = getInferCachePath(traceDir, fnId);
+  fs.ensureDirSync(path.dirname(cachePath));
+  fs.writeJsonSync(cachePath, triple, { spaces: 2 });
+};
+
 const collectArgsSamples = (triples: CallTriple[], count: number): unknown[][] => {
   const buckets = Array.from({ length: count }, () => [] as unknown[]);
   triples.forEach((triple) => {
@@ -530,9 +559,17 @@ const collectOutcomeSamples = (triples: CallTriple[], field: "value" | "error"):
   return output;
 };
 
-export function inferCallTripleTypes(triples: CallTriple[]): CallTriple {
+export function inferCallTripleTypes(triples: CallTriple[], traceDir?: string): CallTriple {
   if (triples.length === 0) {
     return { enter: undefined, call: undefined, exit: undefined };
+  }
+
+  const fnId = getFnIdFromTriples(triples);
+  if (traceDir && fnId) {
+    const cached = loadInferCache(traceDir, fnId);
+    if (cached) {
+      return cached;
+    }
   }
 
   const baseEnter = getFirstEnter(triples);
@@ -586,7 +623,7 @@ export function inferCallTripleTypes(triples: CallTriple[]): CallTriple {
       fnId: baseExit.fnId,
       callId: baseExit.callId,
       outcome: {
-        kind: baseExit.outcome.kind
+        kind: "return"
       },
       outcomeTypes,
       env: {},
@@ -594,9 +631,15 @@ export function inferCallTripleTypes(triples: CallTriple[]): CallTriple {
     };
   }
 
-  return {
+  const inferred = {
     enter: inferredEnter,
     call: undefined,
     exit: inferredExit
   };
+
+  if (traceDir && fnId) {
+    writeInferCache(traceDir, fnId, inferred);
+  }
+
+  return inferred;
 }

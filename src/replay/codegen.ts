@@ -264,7 +264,8 @@ export function generateReplaySource(
   triple: CallTriple,
   index: ReplayIndex,
   useTypeNames = false,
-  inferTypedTriple: CallTriple | undefined
+  inferTypedTriple: CallTriple | undefined,
+  traceDir?: string
 ): string {
   const enter = triple.enter;
   const exit = triple.exit;
@@ -356,7 +357,9 @@ export function generateReplaySource(
     if (childTriple) {
       // typed infer of this child
       const relatedTriples = findAllTriplesById(child.callId, index);
-      const inferRelatedTriple = useTypeNames ? inferCallTripleTypes(relatedTriples) : childTriple;
+      const inferRelatedTriple = useTypeNames
+        ? inferCallTripleTypes(relatedTriples, traceDir)
+        : childTriple;
       const mockSource = generateMockSource(childTriple, useTypeNames, inferRelatedTriple);
       if (mockSource.length > 0) {
         lines.push(mockSource);
@@ -384,7 +387,9 @@ export function generateReplaySource(
     let constructorArgDecl = "";
     if (constructorTriple) {
       const relatedTriples = constructorTriple.enter ? findAllTriplesById(constructorTriple.enter.callId, index) : [];
-      const inferRelatedTriple = useTypeNames ? inferCallTripleTypes(relatedTriples) : constructorTriple;
+      const inferRelatedTriple = useTypeNames
+        ? inferCallTripleTypes(relatedTriples, traceDir)
+        : constructorTriple;
 
       [constructorArgDecl, constructorArgList] = generateMockConstructor(constructorTriple, useTypeNames, inferRelatedTriple);
       if (constructorArgDecl.length > 0) {

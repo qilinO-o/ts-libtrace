@@ -12,7 +12,7 @@ export function runReplay(traceFile: string, outDir: string, useTypeNames = fals
 
   const events = readTraceFile(traceFile);
   const triples = groupEventsToCallTriples(events);
-  const inferTypedTriple = useTypeNames ? inferCallTripleTypes(triples) : undefined;
+  const inferTypedTriple = useTypeNames ? inferCallTripleTypes(triples, traceDir) : undefined;
 
   console.log(
     `Replaying trace file ${traceFile}\n\t-> ${triples.length} invocations\n\tTo outDir=${outDir})`
@@ -35,7 +35,7 @@ export function runReplay(traceFile: string, outDir: string, useTypeNames = fals
     const filePath = path.join(outDir, fileName);
 
     try {
-      const source = generateReplaySource(triple, index, useTypeNames, inferTypedTriple);
+      const source = generateReplaySource(triple, index, useTypeNames, inferTypedTriple, traceDir);
       fs.writeFileSync(filePath, source, "utf8");
       generatedFiles.push(filePath);
     } catch (err) {

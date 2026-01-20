@@ -96,6 +96,11 @@ const emitAnnotation = (indent: number, annotation: string): string => {
   return `${indentText}// ${annotation}`;
 }
 
+const emitCompareAndError = (indent: number, lhs: string, rhs: string, errorMsg: string): string => {
+  const indentText = " ".repeat(Math.max(0, indent));
+  return `${indentText}if (JSON.stringify(${lhs}) !== JSON.stringify(${rhs})) { throw new Error("${errorMsg}"); }`
+}
+
 function emitValueAsTsExpression(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
@@ -219,9 +224,8 @@ function generateMockSource(triple: CallTriple, useTypeNames = false, inferTyped
   args.forEach((arg, idx) => {
     const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
     lines.push(emitParsedBinding(2 + classIndent.length, `expected${idx}`, arg, false, argType));
-    lines.push(
-      `${classIndent}  if (JSON.stringify(arg${idx}) !== JSON.stringify(expected${idx})) { throw new Error("arg mismatch"); }`
-    );
+    const errorMsg = `arg${idx} mismatch for child call ${className === "-" ? "" : `${className}.`}${fnName}()`;
+    lines.push(emitCompareAndError(2 + classIndent.length, `arg${idx}`, `expected${idx}`, errorMsg));
   });
 
   if (outcome?.kind === "throw") {
@@ -363,7 +367,7 @@ export function generateReplaySource(
 
   // replay core section
   lines.push(emitAnnotation(0, "main replay logic"));
-  lines.push(`export function replay_wrapper(): boolean {`);
+  lines.push(`export function replay_wrapper(): void {`);
   lines.push(emitAnnotation(2, "args"));
   args.forEach((arg, idx) => {
     const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
@@ -422,7 +426,7 @@ export function generateReplaySource(
     lines.push(`  } catch (_e) {`);
     lines.push(`    threw = true;`);
     lines.push(`  }`);
-    lines.push(`  if (!threw) return false;`);
+    lines.push(`  if (!threw) throw new Error("Should throw an Error, but not");`);
   } else if (outcome?.kind === "return" && outcomeTypes?.at(0) !== "void") {
     if (useTypeNames) {
       const typeName = returnTypeName ?? "unknown";
@@ -432,7 +436,7 @@ export function generateReplaySource(
       lines.push(emitBinding(2, "ret", callExpr, false, undefined));
       lines.push(emitParsedBinding(2, "expected", outcome.value, false));
     }
-    lines.push(`  if (JSON.stringify(ret) !== JSON.stringify(expected)) return false;`);
+    lines.push(emitCompareAndError(2, "ret", "expected", "return value mismatch"));
   } else {
     lines.push(`  ${callExpr};`);
   }
@@ -452,16 +456,15 @@ export function generateReplaySource(
       const actualEnvExpr = `{ ${actualEntries.join(", ")} }`;
       const actualEnvTypeName = useTypeNames ? buildObjectTypeName(enterEnvKeys, enterEnvTypeMap) : undefined;
       lines.push(emitBinding(2, "actualEnv", actualEnvExpr, false, actualEnvTypeName));
-      lines.push(`  if (JSON.stringify(actualEnv) !== JSON.stringify(expectedEnv)) return false;`);
+      lines.push(emitCompareAndError(2, "actualEnv", "expectedEnv", "env mutation mismatch"));
     } else {
       enterEnvKeys.forEach((key) => {
-        lines.push(`  if (JSON.stringify(${key}) !== JSON.stringify(expected_${key})) return false;`);
+        lines.push(emitCompareAndError(2, `${key}`, `expected_${key}`, `env: ${key} mutation mismatch`));
       });
     }
   }
 
   // end of replay section
-  lines.push(`  return true;`);
   lines.push(`}`);
 
   return lines.join("\n");

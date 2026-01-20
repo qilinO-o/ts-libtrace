@@ -163,7 +163,8 @@ const createEnterCall = (
   argsExpression: ts.Expression,
   argsTypeNames: string[],
   envExpression: ts.ObjectLiteralExpression,
-  envTypeNames: string[]
+  envTypeNames: string[],
+  funcKind: number
 ): ts.Expression => {
   return factory.createCallExpression(
     factory.createPropertyAccessExpression(factory.createIdentifier("__trace"), "enter"),
@@ -175,7 +176,8 @@ const createEnterCall = (
       envExpression,
       factory.createStringLiteral(thisArgTypeName),
       createStringArrayLiteral(factory, argsTypeNames),
-      createStringArrayLiteral(factory, envTypeNames)
+      createStringArrayLiteral(factory, envTypeNames),
+      factory.createNumericLiteral(funcKind)
     ]
   );
 };
@@ -276,6 +278,8 @@ export function instrumentFunctionBody(
         [factory.createIdentifier("arguments")]
       );
 
+  // 1 for functions, 2 for methods, 3 for constructors
+  const funcKind = (fnIdStruct.className === undefined) ? 1 : (fnIdStruct.name === "constructor" ? 3 : 2);
   const callIdConst = createConst(
     factory,
     "__callId",
@@ -286,7 +290,8 @@ export function instrumentFunctionBody(
       argsExpression,
       argsTypeNames,
       envExpression,
-      envTypeNames
+      envTypeNames,
+      funcKind
     )
   );
 

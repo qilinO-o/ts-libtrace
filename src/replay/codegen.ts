@@ -101,6 +101,35 @@ const emitCompareAndError = (indent: number, lhs: string, rhs: string, errorMsg:
   return `${indentText}if (JSON.stringify(${lhs}) !== JSON.stringify(${rhs})) { throw new Error("${errorMsg}"); }`
 }
 
+const emitAssign = (
+  indent: number,
+  name: string,
+  valueExpression: string,
+): string => {
+  const indentText = " ".repeat(Math.max(0, indent));
+  return `${indentText}${name} = ${valueExpression};`;
+};
+
+const emitParsedAssign = (
+  indent: number,
+  name: string,
+  value: unknown,
+  typeName?: string
+): string => {
+  let rhs = undefined;
+  if (value === null) rhs = "null";
+  else if (value === undefined) rhs = "undefined";
+  else if (typeof value === "boolean") rhs = value ? "true" : "false";
+  else if (typeof value === "number") rhs = Number.isFinite(value) ? String(value) : "null";
+  else if (typeof value === "string") rhs = JSON.stringify(value);
+  if (rhs === undefined) {
+    const jsonString = toJsonString(value);
+    rhs = JSON.stringify(jsonString);
+    rhs = typeName ? `JSON.parse<${typeName}>(${rhs})` : `JSON.parse(${rhs})`;
+  }
+  return emitAssign(indent, name, rhs);
+};
+
 function emitValueAsTsExpression(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
@@ -227,6 +256,7 @@ function generateMockSource(triple: CallTriple, useTypeNames = false, inferTyped
     const errorMsg = `arg${idx} mismatch for child call ${className === "-" ? "" : `${className}.`}${fnName}()`;
     lines.push(emitCompareAndError(2 + classIndent.length, `arg${idx}`, `expected${idx}`, errorMsg));
   });
+  // FIXME: change env if present
 
   if (outcome?.kind === "throw") {
     lines.push(`${classIndent}  throw ${emitValueAsTsExpression(outcome.error)};`);
@@ -294,10 +324,12 @@ export function generateReplaySource(
 
     // bare class declaration section
     const bareClasses = extractBareClass(inferTypedTriple);
-    bareClasses.forEach((value: string, key: string) => {
-      lines.push(`class ${value} ${key};`);
-    })
+    // FIXME:
+    // bareClasses.forEach((value: string, key: string) => {
+    //   lines.push(`class ${value} ${key};`);
+    // })
   }
+  lines.push("// <INSERT_TAG>")
 
   const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
   const enterEnv = isPlainObject(enter?.env) ? (enter?.env as Record<string, unknown>) : {};
@@ -326,7 +358,7 @@ export function generateReplaySource(
     } else {
       enterEnvKeys.forEach((key) => {
         const envType = useTypeNames ? getTypeFromMap(enterEnvTypeMap, key) ?? "unknown" : undefined;
-        lines.push(emitParsedBinding(0, key, enterEnv[key], true, envType));
+        lines.push(emitParsedAssign(0, key, enterEnv[key], envType));
       });
     }
   }

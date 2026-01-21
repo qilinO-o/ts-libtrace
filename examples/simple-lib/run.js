@@ -36,3 +36,12 @@ const { default: myMath } = math;
 myMath();
 
 math.testBare();
+
+const usestd = new math.UseStdTest();
+usestd.recordStr("hello");
+usestd.recordStr("world");
+
+math.checkSet("gHi!");
+math.checkSet("Bye!");
+math.checkSet("gNo!");
+math.checkSet("gHi!");

@@ -65,3 +65,5 @@ const bare = { x1: 1, y2: 2, z3: 3 }
 export function testBare() {
   bare;
 }
+
+export { UseStdTest, checkSet } from "./usestd.js";

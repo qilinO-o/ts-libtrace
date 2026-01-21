@@ -11,6 +11,41 @@ const createConst = (factory: ts.NodeFactory, name: string, initializer: ts.Expr
     )
   );
 
+const createLet = (
+  factory: ts.NodeFactory,
+  name: string,
+  initializer?: ts.Expression
+): ts.Statement =>
+  factory.createVariableStatement(
+    undefined,
+    factory.createVariableDeclarationList(
+      [factory.createVariableDeclaration(factory.createIdentifier(name), undefined, undefined, initializer)],
+      ts.NodeFlags.Let
+    )
+  );
+
+const createAssignmentStatement = (
+  factory: ts.NodeFactory,
+  name: string,
+  value: ts.Expression
+): ts.Statement =>
+  factory.createExpressionStatement(
+    factory.createBinaryExpression(
+      factory.createIdentifier(name),
+      factory.createToken(ts.SyntaxKind.EqualsToken),
+      value
+    )
+  );
+
+const isNestedFunctionLike = (node: ts.Node): boolean =>
+  ts.isFunctionDeclaration(node) ||
+  ts.isFunctionExpression(node) ||
+  ts.isArrowFunction(node) ||
+  ts.isMethodDeclaration(node) ||
+  ts.isConstructorDeclaration(node) ||
+  ts.isGetAccessorDeclaration(node) ||
+  ts.isSetAccessorDeclaration(node);
+
 const createStringArrayLiteral = (factory: ts.NodeFactory, values: string[]): ts.ArrayLiteralExpression =>
   factory.createArrayLiteralExpression(
     values.map((value) => factory.createStringLiteral(value)),
@@ -295,46 +330,50 @@ export function instrumentFunctionBody(
     )
   );
 
-  const rewrittenStatements: ts.Statement[] = [];
+  const labelIdentifier = factory.createUniqueName("__libtrace_return");
 
-  var if_make_exit = false;
-  originalBlock.statements.forEach((stmt) => {
-    if (ts.isReturnStatement(stmt)) {
-      const initializer = stmt.expression ?? factory.createVoidZero();
-      const retConst = createConst(factory, "__ret", initializer);
-      const exitStmt = createExitCall(
-        factory,
-        "return",
-        "__ret",
-        envExpression,
-        outcomeTypeNames,
-        envTypeNames
-      );
-      const returnStmt = factory.createReturnStatement(factory.createIdentifier("__ret"));
-
-      rewrittenStatements.push(retConst, exitStmt, returnStmt);
-      if_make_exit = true;
-    } else {
-      rewrittenStatements.push(stmt);
-    }
-  });
-
-  if (!if_make_exit) {
-    const exitStmt = createExitCall(
-      factory,
-      "return",
-      (fnIdStruct.className && fnIdStruct.name === "constructor" ? "this" : "undefined"),
-      envExpression,
-      outcomeTypeNames,
-      envTypeNames
+  const createReturnReplacement = (expr?: ts.Expression): ts.Statement =>
+    factory.createBlock(
+      [
+        createAssignmentStatement(factory, "__ret", expr ?? factory.createVoidZero()),
+        createAssignmentStatement(factory, "__isThrow", factory.createFalse()),
+        factory.createBreakStatement(labelIdentifier)
+      ],
+      true
     );
-    rewrittenStatements.push(exitStmt);
+
+  const rewriteReturns = (block: ts.Block): ts.Block => {
+    const transformer: ts.TransformerFactory<ts.Block> = (context) => {
+      const visitReturns = (visitNode: ts.Node): ts.VisitResult<ts.Node> => {
+        if (ts.isReturnStatement(visitNode)) {
+          return createReturnReplacement(visitNode.expression);
+        }
+        if (isNestedFunctionLike(visitNode)) {
+          return visitNode;
+        }
+        return ts.visitEachChild(visitNode, visitReturns, context);
+      };
+      return (visitNode) => ts.visitNode(visitNode, visitReturns) as ts.Block;
+    };
+
+    const result = ts.transform(block, [transformer]);
+    const transformedBlock = result.transformed[0] as ts.Block;
+    result.dispose();
+    return transformedBlock;
+  };
+
+  const rewrittenBlock = rewriteReturns(originalBlock);
+  const tryStatements = [...rewrittenBlock.statements];
+  if (fnIdStruct.className && fnIdStruct.name === "constructor") {
+    tryStatements.push(createAssignmentStatement(factory, "__ret", factory.createThis()));
   }
+  tryStatements.push(createAssignmentStatement(factory, "__isThrow", factory.createFalse()));
 
   const catchClause = factory.createCatchClause(
     factory.createVariableDeclaration(factory.createIdentifier("__err")),
     factory.createBlock(
       [
+        createAssignmentStatement(factory, "__isThrow", factory.createTrue()),
         createExitCall(
           factory,
           "throw",
@@ -350,12 +389,47 @@ export function instrumentFunctionBody(
   );
 
   const tryStatement = factory.createTryStatement(
-    factory.createBlock(rewrittenStatements, true),
+    factory.createBlock(tryStatements, true),
     catchClause,
-    undefined
+    factory.createBlock(
+      [
+        factory.createIfStatement(
+          factory.createPrefixUnaryExpression(
+            ts.SyntaxKind.ExclamationToken,
+            factory.createIdentifier("__isThrow")
+          ),
+          factory.createBlock(
+            [
+              createExitCall(
+                factory,
+                "return",
+                "__ret",
+                envExpression,
+                outcomeTypeNames,
+                envTypeNames
+              )
+            ],
+            true
+          )
+        )
+      ],
+      true
+    )
   );
 
-  const newBody = factory.createBlock([fnIdConst, callIdConst, tryStatement], true);
+  const labeledTryStatement = factory.createLabeledStatement(labelIdentifier, tryStatement);
+
+  const newBody = factory.createBlock(
+    [
+      fnIdConst,
+      callIdConst,
+      createLet(factory, "__ret"),
+      createLet(factory, "__isThrow", factory.createTrue()),
+      labeledTryStatement,
+      factory.createReturnStatement(factory.createIdentifier("__ret"))
+    ],
+    true
+  );
 
   if (ts.isFunctionDeclaration(node)) {
     return factory.updateFunctionDeclaration(

@@ -26,7 +26,9 @@ const IGNORED_NAMES = new Set([
   "setTimeout",
   "clearTimeout",
   "setInterval",
-  "clearInterval"
+  "clearInterval",
+  "undefined",
+  "null"
 ]);
 
 const isTypeNodeKind = (kind: ts.SyntaxKind): boolean =>

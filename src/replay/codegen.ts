@@ -1,3 +1,4 @@
+import superjson from "superjson";
 import { findCallTripleById, findAllTriplesById } from "./indexStore.js";
 import { inferCallTripleTypes } from "./typeInfer.js";
 import { CallTriple, ReplayIndex } from "./types.js";
@@ -63,20 +64,14 @@ const emitBinding = (
 
 const toJsonString = (value: unknown): string => {
   try {
-    const jsonString = JSON.stringify(value);
-    return jsonString ?? "null";
+    const { json } = superjson.serialize(value);
+    return json?.toString() ?? "null";
   } catch {
     return JSON.stringify(String(value)) ?? "null";
   }
 };
 
-const emitParsedBinding = (
-  indent: number,
-  name: string,
-  value: unknown,
-  mutable: boolean,
-  typeName?: string
-): string => {
+const emitValueAsParsedJson = (value: unknown, typeName?: string): string => {
   let rhs = undefined;
   if (value === null) rhs = "null";
   else if (value === undefined) rhs = "undefined";
@@ -88,6 +83,17 @@ const emitParsedBinding = (
     rhs = JSON.stringify(jsonString);
     rhs = typeName ? `JSON.parse<${typeName}>(${rhs})` : `JSON.parse(${rhs})`;
   }
+  return rhs;
+}
+
+const emitParsedBinding = (
+  indent: number,
+  name: string,
+  value: unknown,
+  mutable: boolean,
+  typeName?: string
+): string => {
+  const rhs = emitValueAsParsedJson(value, typeName);
   return emitBinding(indent, name, rhs, mutable, typeName);
 };
 
@@ -116,17 +122,7 @@ const emitParsedAssign = (
   value: unknown,
   typeName?: string
 ): string => {
-  let rhs = undefined;
-  if (value === null) rhs = "null";
-  else if (value === undefined) rhs = "undefined";
-  else if (typeof value === "boolean") rhs = value ? "true" : "false";
-  else if (typeof value === "number") rhs = Number.isFinite(value) ? String(value) : "null";
-  else if (typeof value === "string") rhs = JSON.stringify(value);
-  if (rhs === undefined) {
-    const jsonString = toJsonString(value);
-    rhs = JSON.stringify(jsonString);
-    rhs = typeName ? `JSON.parse<${typeName}>(${rhs})` : `JSON.parse(${rhs})`;
-  }
+  const rhs = emitValueAsParsedJson(value, typeName);
   return emitAssign(indent, name, rhs);
 };
 

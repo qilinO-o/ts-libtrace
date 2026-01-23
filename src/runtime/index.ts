@@ -1,3 +1,5 @@
+import superjson from "superjson";
+import { Class } from "superjson/dist/types.js";
 import { writeEvent, flush, flushSync } from "./traceWriter.js";
 import { CallEvent, EnterEvent, ExitEvent, Invocation } from "./types.js";
 
@@ -174,6 +176,9 @@ export const __trace = {
 
     writeEvent(callEvent);
     writeEvent(event);
+  },
+  registerClass(cls: Class): void {
+    superjson.registerClass(cls);
   }
 };
 

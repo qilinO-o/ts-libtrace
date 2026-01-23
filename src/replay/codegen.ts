@@ -1,7 +1,7 @@
-import superjson from "superjson";
 import { findCallTripleById, findAllTriplesById } from "./indexStore.js";
 import { inferCallTripleTypes } from "./typeInfer.js";
 import { CallTriple, ReplayIndex } from "./types.js";
+import { toJsonString  } from "./traceReader.js";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -62,15 +62,6 @@ const emitBinding = (
   return `${indentText}${keyword} ${name}${typeAnnotation} = ${valueExpression};`;
 };
 
-const toJsonString = (value: unknown): string => {
-  try {
-    const { json } = superjson.serialize(value);
-    return json?.toString() ?? "null";
-  } catch {
-    return JSON.stringify(String(value)) ?? "null";
-  }
-};
-
 const emitValueAsParsedJson = (value: unknown, typeName?: string): string => {
   let rhs = undefined;
   if (value === null) rhs = "null";
@@ -79,7 +70,7 @@ const emitValueAsParsedJson = (value: unknown, typeName?: string): string => {
   else if (typeof value === "number") rhs = Number.isFinite(value) ? String(value) : "null";
   else if (typeof value === "string") rhs = JSON.stringify(value);
   if (rhs === undefined) {
-    const jsonString = toJsonString(value);
+    const jsonString = toJsonString(value, typeName);
     rhs = JSON.stringify(jsonString);
     rhs = typeName ? `JSON.parse<${typeName}>(${rhs})` : `JSON.parse(${rhs})`;
   }

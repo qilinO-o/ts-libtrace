@@ -3,6 +3,7 @@ import { InstrumenterOptions } from "../config/types.js";
 import { isTopLevelTraceTarget, SelectorContext } from "./functionSelector.js";
 import { buildFunctionIdStruct } from "./functionId.js";
 import { ensureTraceImport, instrumentFunctionBody } from "./injection.js";
+import { updateClassMembers } from "./jsonRegisterInjection.js"
 
 export function transformSourceFile(
   context: ts.TransformationContext,
@@ -26,6 +27,11 @@ export function transformSourceFile(
         return instrumentFunctionBody(node, factory, fnId, typeChecker);
       }
       return ts.visitEachChild(node, visitor, context);
+    }
+
+    if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+      const updated = updateClassMembers(node, factory);
+      return ts.visitEachChild(updated, visitor, context);
     }
 
     return ts.visitEachChild(node, visitor, context);

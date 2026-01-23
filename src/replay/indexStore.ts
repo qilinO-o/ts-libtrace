@@ -1,9 +1,8 @@
 import fs from "fs-extra";
 import path from "node:path";
-import superjson from "superjson";
 import { TraceEvent } from "../runtime/types.js";
 import { CallTriple, ReplayIndex } from "./types.js";
-import { groupEventsToCallTriples } from "./traceReader.js";
+import { groupEventsToCallTriples, parseTraceLine } from "./traceReader.js";
 
 const INDEX_FILE = ".libtrace_index.json";
 
@@ -37,7 +36,7 @@ function buildReplayIndex(dir: string): ReplayIndex {
 
     const lines = readLines(filePath);
     lines.forEach((line, idx) => {
-      const parsed = superjson.parse(line) as TraceEvent;
+      const parsed = parseTraceLine(line);
       const entry = index.calls[parsed.callId] ?? {
         callId: parsed.callId,
         fnId: parsed.fnId,
@@ -117,7 +116,7 @@ export function findCallTripleById(callId: string, index: ReplayIndex): CallTrip
           .map((lineNumber) => allLines[lineNumber - 1])
       : allLines;
 
-  const events = targetLines.map((line) => superjson.parse(line) as TraceEvent);
+  const events = targetLines.map((line) => parseTraceLine(line));
   return findTripleByCallId(events, callId);
 }
 
@@ -126,6 +125,6 @@ export function findAllTriplesById(callId: string, index: ReplayIndex): CallTrip
   if (!entry) return [];
   const allLines = readLines(entry.filePath);
   if (allLines.length === 0) return [];
-  const events = allLines.map((line) => superjson.parse(line) as TraceEvent);
+  const events = allLines.map((line) => parseTraceLine(line));
   return groupEventsToCallTriples(events);
 }

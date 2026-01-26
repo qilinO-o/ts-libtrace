@@ -526,16 +526,21 @@ const collectArgsSamples = (triples: CallTriple[], count: number): unknown[][] =
   return buckets;
 };
 
-const collectEnvSamples = (triples: CallTriple[], keys: string[], source: "enter" | "exit"): unknown[][] => {
+const collectEnvSamples = (triples: CallTriple[], keys: string[]): unknown[][] => {
   const buckets = Array.from({ length: keys.length }, () => [] as unknown[]);
   triples.forEach((triple) => {
-    const env = source === "enter" ? triple.enter?.env : triple.exit?.env;
-    if (!isPlainObject(env)) {
-      return;
+    const env1 = triple.enter?.env
+    const env2 = triple.exit?.env;
+    if (isPlainObject(env1)) {
+      keys.forEach((key, index) => {
+        buckets[index].push(env1[key]);
+      });
     }
-    keys.forEach((key, index) => {
-      buckets[index].push(env[key]);
-    });
+    if (isPlainObject(env2)) {
+      keys.forEach((key, index) => {
+        buckets[index].push(env2[key]);
+      });
+    }
   });
   return buckets;
 };
@@ -574,62 +579,66 @@ export function inferCallTripleTypes(triples: CallTriple[], traceDir?: string): 
 
   const baseEnter = getFirstEnter(triples);
   const baseExit = getFirstExit(triples);
+  if (baseEnter === undefined || baseExit === undefined) {
+    throw Error("Error: type infer triples cannot get first enter or exit trace");
+  }
 
   let inferredEnter: EnterEvent | undefined = undefined;
-  if (baseEnter) {
-    const thisArgSamples = collectThisSamples(triples);
-    const argsSamples = collectArgsSamples(triples, baseEnter.argsTypes.length);
-    const envKeys = isPlainObject(baseEnter.env) ? Object.keys(baseEnter.env) : [];
-    const envSamples = collectEnvSamples(triples, envKeys, "enter");
 
-    const thisArgType = inferTypeName(baseEnter.thisArgType, thisArgSamples);
-    const argsTypes = baseEnter.argsTypes.map((typeName, index) =>
-      inferTypeName(typeName, argsSamples[index] ?? [])
-    );
-    const envTypes = baseEnter.envTypes.map((typeName, index) =>
-      inferTypeName(typeName, envSamples[index] ?? [])
-    );
+  const thisArgSamples = collectThisSamples(triples);
+  const argsSamples = collectArgsSamples(triples, baseEnter.argsTypes.length);
+  
+  const envKeys = isPlainObject(baseEnter.env) ? Object.keys(baseEnter.env) : [];
+  const envKeysExit = isPlainObject(baseExit.env) ? Object.keys(baseExit.env) : [];
+  const areKeysEqual = (a: string[], b: string[]): boolean => {
+    return a.length === b.length && a.every((val, index) => val === b[index]);
+  };
+  console.assert(areKeysEqual(envKeys, envKeysExit));
+  
+  const envSamples = collectEnvSamples(triples, envKeys);
 
-    inferredEnter = {
-      type: "enter",
-      fnId: baseEnter.fnId,
-      callId: baseEnter.callId,
-      thisArg: undefined,
-      thisArgType,
-      args: [],
-      argsTypes,
-      env: {},
-      envTypes
-    };
-  }
+  const thisArgType = inferTypeName(baseEnter.thisArgType, thisArgSamples);
+  const argsTypes = baseEnter.argsTypes.map((typeName, index) =>
+    inferTypeName(typeName, argsSamples[index] ?? [])
+  );
+  const envTypes = baseEnter.envTypes.map((typeName, index) =>
+    inferTypeName(typeName, envSamples[index] ?? [])
+  );
+  console.assert(envKeys.length === envTypes.length);
+
+  inferredEnter = {
+    type: "enter",
+    fnId: baseEnter.fnId,
+    callId: baseEnter.callId,
+    thisArg: undefined,
+    thisArgType,
+    args: [],
+    argsTypes,
+    env: envKeys,
+    envTypes
+  };
+
 
   let inferredExit: ExitEvent | undefined = undefined;
-  if (baseExit) {
-    const envKeys = isPlainObject(baseExit.env) ? Object.keys(baseExit.env) : [];
-    const envSamples = collectEnvSamples(triples, envKeys, "exit");
-    const returnSamples = collectOutcomeSamples(triples, "value");
-    const errorSamples = collectOutcomeSamples(triples, "error");
+  const returnSamples = collectOutcomeSamples(triples, "value");
+  const errorSamples = collectOutcomeSamples(triples, "error");
 
-    const outcomeTypes = baseExit.outcomeTypes.map((typeName, index) => {
-      const samples = index === 0 ? returnSamples : errorSamples;
-      return inferTypeName(typeName, samples);
-    });
-    const envTypes = baseExit.envTypes.map((typeName, index) =>
-      inferTypeName(typeName, envSamples[index] ?? [])
-    );
+  const outcomeTypes = baseExit.outcomeTypes.map((typeName, index) => {
+    const samples = index === 0 ? returnSamples : errorSamples;
+    return inferTypeName(typeName, samples);
+  });
 
-    inferredExit = {
-      type: "exit",
-      fnId: baseExit.fnId,
-      callId: baseExit.callId,
-      outcome: {
-        kind: "return"
-      },
-      outcomeTypes,
-      env: {},
-      envTypes
-    };
-  }
+  inferredExit = {
+    type: "exit",
+    fnId: baseExit.fnId,
+    callId: baseExit.callId,
+    outcome: {
+      kind: "return"
+    },
+    outcomeTypes,
+    env: envKeys,
+    envTypes
+  };
 
   const inferred = {
     enter: inferredEnter,

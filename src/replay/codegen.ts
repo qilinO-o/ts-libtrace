@@ -261,10 +261,10 @@ export function generateReplaySource(
   const exitEnv = isPlainObject(exit?.env) ? (exit?.env as Record<string, unknown>) : {};
   const thisArg = enter?.thisArg ?? null;
   const argTypes = useTypeNames ? inferTypedTriple.enter?.argsTypes : undefined;
-  const enterEnvTypes = useTypeNames ? inferTypedTriple.enter?.envTypes : undefined;
-  const exitEnvTypes = useTypeNames ? inferTypedTriple.exit?.envTypes : undefined;
-  const enterEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(enterEnv), enterEnvTypes) : undefined;
-  const exitEnvTypeMap = useTypeNames ? buildTypeMap(Object.keys(exitEnv), exitEnvTypes) : undefined;
+  const envTypes = useTypeNames ? inferTypedTriple.enter?.envTypes : undefined;
+  const envKeys: string[] = useTypeNames ? inferTypedTriple.enter?.env : undefined;
+  const enterEnvTypeMap = useTypeNames ? buildTypeMap(envKeys, envTypes) : undefined;
+  const exitEnvTypeMap = useTypeNames ? buildTypeMap(envKeys, envTypes) : undefined;
   const thisArgTypeName = useTypeNames ? normalizeTypeName(inferTypedTriple.enter?.thisArgType) : undefined;
   const outcomeTypes = useTypeNames ? inferTypedTriple.exit?.outcomeTypes : undefined;
   const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;

@@ -636,8 +636,9 @@ export function inferCallTripleTypes(triples: CallTriple[], traceDir?: string): 
       kind: "return"
     },
     outcomeTypes,
-    env: envKeys,
-    envTypes
+    // set empty to save space and to be consistent with enter
+    env: undefined,
+    envTypes: []
   };
 
   const inferred = {

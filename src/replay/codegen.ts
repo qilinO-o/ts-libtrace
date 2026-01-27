@@ -153,61 +153,6 @@ const extractFnInfo = (fnId: string): { className?: string; fnName?: string } =>
   };
 };
 
-const parseBareObjectKeys = (typeName: string): string[] => {
-  return typeName
-    .replace(/^\{|\}$/g, '')
-    .trim()
-    .replace(/:[^;]+;/g, ' ')
-    .replace(/[^A-Za-z0-9]+/g, ' ')
-    .split(/\s+/)
-    .filter(key => key.length > 0)
-    .map(key => key.charAt(0).toUpperCase() + key.slice(1));
-};
-
-export function extractBareClass(triple: CallTriple): Map<string, string> {
-  const bareClasses = new Map<string, string>();
-
-  const resolveTypeName = (typeName: string | undefined): string | undefined => {
-    if (!typeName) return typeName;
-    if (!typeName.startsWith("{")) {
-      return typeName;
-    }
-    const existing = bareClasses.get(typeName);
-    if (existing) {
-      return existing;
-    }
-    const keys = parseBareObjectKeys(typeName);
-    if (keys.length === 0) {
-      return typeName;
-    }
-    const suffix = keys.join("");
-    const className = `bareClass${suffix}`;
-    bareClasses.set(typeName, className);
-    return className;
-  };
-
-  if (triple.enter) {
-    triple.enter.thisArgType = resolveTypeName(triple.enter.thisArgType) ?? triple.enter.thisArgType;
-    triple.enter.argsTypes = triple.enter.argsTypes.map(
-      (typeName) => resolveTypeName(typeName) ?? typeName
-    );
-    triple.enter.envTypes = triple.enter.envTypes.map(
-      (typeName) => resolveTypeName(typeName) ?? typeName
-    );
-  }
-
-  if (triple.exit) {
-    triple.exit.outcomeTypes = triple.exit.outcomeTypes.map(
-      (typeName) => resolveTypeName(typeName) ?? typeName
-    );
-    triple.exit.envTypes = triple.exit.envTypes.map(
-      (typeName) => resolveTypeName(typeName) ?? typeName
-    );
-  }
-
-  return bareClasses;
-}
-
 function generateMockSource(triple: CallTriple, useTypeNames = false, inferTypedTriple: CallTriple): string {
   const enter = triple.enter;
   const exit = triple.exit;
@@ -308,13 +253,6 @@ export function generateReplaySource(
     // import section
     lines.push("import { JSON } from \"json-as\";");
     lines.push("");
-
-    // bare class declaration section
-    const bareClasses = extractBareClass(inferTypedTriple);
-    // FIXME:
-    // bareClasses.forEach((value: string, key: string) => {
-    //   lines.push(`class ${value} ${key};`);
-    // })
   }
   lines.push("// <INSERT_TAG>")
 

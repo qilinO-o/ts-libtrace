@@ -612,7 +612,7 @@ export function inferCallTripleTypes(triples: CallTriple[], traceDir?: string): 
     callId: baseEnter.callId,
     thisArg: undefined,
     thisArgType,
-    args: [],
+    args: undefined,
     argsTypes,
     env: envKeys,
     envTypes
@@ -646,9 +646,68 @@ export function inferCallTripleTypes(triples: CallTriple[], traceDir?: string): 
     exit: inferredExit
   };
 
+  const bareClasses = extractBareClass(inferred);
+  // use any-typed thisArg to save the bare class name mapping
+  inferred.enter.thisArg = Object.fromEntries(bareClasses)
+
   if (traceDir && fnId) {
     writeInferCache(traceDir, fnId, inferred);
   }
 
   return inferred;
+}
+
+const parseBareObjectKeys = (typeName: string): string[] => {
+  return typeName
+    .replace(/^\{|\}$/g, '')
+    .trim()
+    .replace(/:[^;]+;/g, ' ')
+    .replace(/[^A-Za-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter(key => key.length > 0)
+    .map(key => key.charAt(0).toUpperCase() + key.slice(1));
+};
+
+export function extractBareClass(triple: CallTriple): Map<string, string> {
+  const bareClasses = new Map<string, string>();
+
+  const resolveTypeName = (typeName: string | undefined): string | undefined => {
+    if (!typeName) return typeName;
+    if (!typeName.startsWith("{")) {
+      return typeName;
+    }
+    const existing = bareClasses.get(typeName);
+    if (existing) {
+      return existing;
+    }
+    const keys = parseBareObjectKeys(typeName);
+    if (keys.length === 0) {
+      return typeName;
+    }
+    const suffix = keys.join("");
+    const className = `bareClass${suffix}`;
+    bareClasses.set(typeName, className);
+    return className;
+  };
+
+  if (triple.enter) {
+    triple.enter.thisArgType = resolveTypeName(triple.enter.thisArgType) ?? triple.enter.thisArgType;
+    triple.enter.argsTypes = triple.enter.argsTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+    triple.enter.envTypes = triple.enter.envTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+  }
+
+  if (triple.exit) {
+    triple.exit.outcomeTypes = triple.exit.outcomeTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+    triple.exit.envTypes = triple.exit.envTypes.map(
+      (typeName) => resolveTypeName(typeName) ?? typeName
+    );
+  }
+
+  return bareClasses;
 }

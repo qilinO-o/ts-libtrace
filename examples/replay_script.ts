@@ -29,7 +29,7 @@ function runReplay(filePath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [binPath, "replay", filePath, "--as", "--outDir", outDir],
+      [binPath, "replay", filePath, "--as", "--ut", "--outDir", outDir],
       { stdio: "inherit" },
     );
     child.on("error", reject);

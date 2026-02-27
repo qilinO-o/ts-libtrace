@@ -145,9 +145,10 @@ function emitValueAsTsExpression(value: unknown): string {
   return JSON.stringify(String(value));
 }
 
-const extractFnInfo = (fnId: string): { className?: string; fnName?: string } => {
+const extractFnInfo = (fnId: string): { path?: string; className?: string; fnName?: string } => {
   const parts = fnId.split("#");
   return {
+    path: parts[0] ?? undefined,
     className: parts[1] ?? undefined,
     fnName: parts[2] ?? undefined
   };
@@ -429,5 +430,144 @@ export function generateReplaySource(
   // end of replay section
   lines.push(`}`);
 
+  return lines.join("\n");
+}
+
+
+export function generateUnitTestSource(
+  triple: CallTriple,
+  index: ReplayIndex,
+  useTypeNames = false,
+  inferTypedTriple: CallTriple | undefined,
+  traceDir?: string
+): string {
+  const enter = triple.enter;
+  const exit = triple.exit;
+  const fnId = enter?.fnId;
+  const callId = enter?.callId;
+  if (fnId === undefined || callId === undefined) {
+    throw Error("Error: replay with bad CallTriple");
+  }
+  
+  const { className, fnName } = extractFnInfo(fnId);
+  if (className === undefined || fnName === undefined) {
+    throw Error("Error: replay with bad fnId");
+  }
+
+  // 1 for functions, 2 for methods, 3 for constructors
+  const funcKind = (className === "-") ? 1 : (fnName === "constructor" ? 3 : 2);
+
+  if (inferTypedTriple === undefined) inferTypedTriple = triple;
+
+  const lines: string[] = [];
+
+  const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
+  const thisArg = enter?.thisArg ?? null;
+  const argTypes = useTypeNames ? inferTypedTriple.enter?.argsTypes : undefined;
+  const thisArgTypeName = useTypeNames ? normalizeTypeName(inferTypedTriple.enter?.thisArgType) : undefined;
+  const outcomeTypes = useTypeNames ? inferTypedTriple.exit?.outcomeTypes : undefined;
+  const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
+  const childInvocations = triple.call?.childInvocations ?? [];
+
+
+  // replay core section
+  lines.push(`describe("Test ${className}.${fnName} #${callId}", () => {`);
+  lines.push(emitAnnotation(2, "args"));
+  args.forEach((arg, idx) => {
+    const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
+    lines.push(emitParsedBinding(2, `arg${idx}`, arg, false, argType));
+  });
+
+  const argList = args.map((_, idx) => `arg${idx}`).join(", ");
+
+  let callExpr = `${fnName}(${argList})`;
+  if (funcKind === 2) {
+    const constructorInvoc = childInvocations[0];
+    const constructorTriple = findCallTripleById(constructorInvoc.callId, index);
+    let constructorArgList = "";
+    let constructorArgDecl = "";
+    if (constructorTriple) {
+      const relatedTriples = constructorTriple.enter ? findAllTriplesById(constructorTriple.enter.callId, index) : [];
+      const inferRelatedTriple = useTypeNames
+        ? inferCallTripleTypes(relatedTriples, traceDir)
+        : constructorTriple;
+
+      [constructorArgDecl, constructorArgList] = generateMockConstructor(constructorTriple, useTypeNames, inferRelatedTriple);
+      if (constructorArgDecl.length > 0) {
+        lines.push(constructorArgDecl);
+      }
+    }
+    
+    if (useTypeNames) {
+      const fallback = normalizeTypeName(className) ?? "unknown";
+      const typeName = thisArgTypeName ?? fallback;
+      lines.push(emitBinding(2, "thisObj", `new ${className}(${constructorArgList})`, false, typeName));
+    } else {
+      lines.push(emitBinding(2, "thisObj", `new ${className}(${constructorArgList})`, false, undefined));
+    }
+    if (thisArg && typeof thisArg === "object") {
+      Object.keys(thisArg as Record<string, unknown>).forEach((key) => {
+        const safeKey = isValidIdentifier(key) ? key : JSON.stringify(key);
+        const keyAccess = isValidIdentifier(key) ? `.${safeKey}` : `[${safeKey}]`;
+        lines.push(`  thisObj${keyAccess} = ${emitValueAsTsExpression((thisArg as Record<string, unknown>)[key])};`);
+      });
+    }
+    callExpr = `thisObj.${fnName}(${argList})`;
+  }
+
+  if (funcKind === 3) {
+    callExpr = `new ${className}(${argList})`;
+  }
+
+  // return section
+  const outcome = exit?.outcome;
+  if (outcome?.kind === "throw") {
+    if (useTypeNames) {
+      lines.push(emitBinding(2, "threw", "false", true, "boolean"));
+    } else {
+      lines.push(emitBinding(2, "threw", "false", true, undefined));
+    }
+    lines.push(`  try {`);
+    lines.push(`    ${callExpr};`);
+    lines.push(`  } catch (_e) {`);
+    lines.push(`    threw = true;`);
+    lines.push(`  }`);
+    lines.push(`  if (!threw) throw new Error("Should throw an Error, but not");`);
+  } else if (outcome?.kind === "return" && outcomeTypes?.at(0) !== "void") {
+    lines.push(`  expect(JSON.stringify(${callExpr})).toBe('${toJsonString(outcome.value, returnTypeName)}');`);
+  } else {
+    lines.push(`  ${callExpr};`);
+  }
+
+  // end of replay section
+  lines.push(`});`);
+
+  return lines.join("\n");
+}
+
+export function combineUnitTests(
+  describes: {id: number, des: string}[],
+  fnId: string,
+  useTypeNames = false
+): string {
+  describes.sort((a, b) => a.id - b.id);
+  const lines: string[] = [];
+  if (useTypeNames) {
+    lines.push("import { JSON } from \"json-as\";");
+    lines.push("import { describe, expect } from \"./lib\";");
+  }
+  const { path, className, fnName } = extractFnInfo(fnId);
+  if (path === undefined || className === undefined || fnName === undefined) {
+    throw Error("Error: replay with bad fnId");
+  }
+
+  const importName = (className === "-") ? fnName : className;
+  const relImportPath = path.replace(/^src/, "..");
+  lines.push(`import { ${importName} } from "${relImportPath}";`);
+  lines.push("");
+
+  describes.forEach((item) => {
+    lines.push(item.des);
+  });
   return lines.join("\n");
 }

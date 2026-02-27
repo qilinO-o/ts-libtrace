@@ -9,10 +9,11 @@ export const registerReplayCommand = (program: Command): Command => {
     .argument("<traceFile>", "Path to a jsonl trace file")
     .option("--outDir <dir>", "Output directory for replay sources", "")
     .option("--as", "Use recorded type names in codegen", false)
-    .action((traceFile: string, options: { outDir?: string; as?: boolean }) => {
+    .option("--ut", "Generate unittest-like replay code", false)
+    .action((traceFile: string, options: { outDir?: string; as?: boolean; ut?: boolean }) => {
       const absTraceFile = path.resolve(traceFile);
       const outDir = options.outDir ? path.resolve(options.outDir) : path.dirname(absTraceFile);
 
-      runReplay(absTraceFile, outDir, Boolean(options.as));
+      runReplay(absTraceFile, outDir, Boolean(options.as), Boolean(options.ut));
     });
 };

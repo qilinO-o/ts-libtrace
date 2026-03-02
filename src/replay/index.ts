@@ -43,7 +43,7 @@ export function runReplay(traceFile: string, outDir: string, useTypeNames = fals
     });
     const source = combineUnitTests(describes, fnIdRec, useTypeNames);
     const fnSafe = safeSegment(fnIdRec);
-    const fileName = `replay_${fnSafe}.generated.ts`;
+    const fileName = `replay_${fnSafe}.spec.ts`;
     const filePath = path.join(outDir, fileName);
     fs.writeFileSync(filePath, source, "utf8");
     generatedFiles.push(filePath);

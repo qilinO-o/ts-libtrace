@@ -534,7 +534,7 @@ export function generateUnitTestSource(
     lines.push(`  }`);
     lines.push(`  if (!threw) throw new Error("Should throw an Error, but not");`);
   } else if (outcome?.kind === "return" && outcomeTypes?.at(0) !== "void") {
-    lines.push(`  expect(JSON.stringify(${callExpr})).toBe('${toJsonString(outcome.value, returnTypeName)}');`);
+    lines.push(`  expect(JSON.stringify(${callExpr}), '${toJsonString(args)}').toBe('${toJsonString(outcome.value, returnTypeName)}', "output");`);
   } else {
     lines.push(`  ${callExpr};`);
   }

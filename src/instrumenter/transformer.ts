@@ -24,7 +24,7 @@ export function transformSourceFile(
     ) {
       if (isTopLevelTraceTarget(node, selectorCtx)) {
         const fnId = buildFunctionIdStruct(node, sourceFile, options.projectRoot);
-        return instrumentFunctionBody(node, factory, fnId, typeChecker);
+        return instrumentFunctionBody(node, factory, fnId, typeChecker, options.noEnv ?? false);
       }
       return ts.visitEachChild(node, visitor, context);
     }

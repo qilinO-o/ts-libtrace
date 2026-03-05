@@ -9,6 +9,7 @@ export const getDefaultInstrumenterOptions = (projectRoot: string): Instrumenter
   srcDir: "src",
   outDir: ".instrumented",
   include: ["src/**/!(*.d).ts"],
-  exclude: ["**/__test__/**", "src/**/*.spec.ts", "src/**/*.test.ts"],
-  runtimeModuleSpecifier: DEFAULT_RUNTIME_MODULE
+  exclude: ["**/__test__/**", "**/__tests__/**", "**/__spec__/**", "**/__specs__/**", "src/**/*.spec.ts", "src/**/*.test.ts"],
+  runtimeModuleSpecifier: DEFAULT_RUNTIME_MODULE,
+  noEnv: false
 });

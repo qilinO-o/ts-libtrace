@@ -67,3 +67,7 @@ export function testBare() {
 }
 
 export { UseStdTest, checkSet } from "./usestd.js";
+
+const test_arrow = (a: string, b: string): number => {
+  return a.length + b.length;
+}

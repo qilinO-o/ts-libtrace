@@ -269,10 +269,11 @@ export function instrumentFunctionBody(
   node: ts.FunctionLikeDeclarationBase,
   factory: ts.NodeFactory,
   fnIdStruct: FunctionIdStruct,
-  typeChecker: ts.TypeChecker
+  typeChecker: ts.TypeChecker,
+  noEnv: boolean = false
 ): ts.FunctionLikeDeclarationBase {
   const fnIdString = functionIdToString(fnIdStruct);
-  const freeVarNames = collectFreeVariableNames(node);
+  const freeVarNames = noEnv ? [] : collectFreeVariableNames(node);
   const thisArgTypeName = getThisArgTypeName(node, typeChecker);
   const argsTypeNames = getParamTypeNames(node, typeChecker);
   const envTypeNames = getEnvTypeNames(node, freeVarNames, typeChecker);

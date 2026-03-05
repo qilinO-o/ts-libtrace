@@ -14,6 +14,7 @@ export function buildToolConfig(cwd: string, cliOptions: CliOptions): ToolConfig
     outDir: cliOptions.outDir ?? defaults.outDir,
     include: cliOptions.include ?? defaults.include,
     exclude: cliOptions.exclude ?? defaults.exclude,
-    runtimeModuleSpecifier: defaults.runtimeModuleSpecifier
+    runtimeModuleSpecifier: defaults.runtimeModuleSpecifier,
+    noEnv: cliOptions.noEnv ?? defaults.noEnv
   };
 }

@@ -31,6 +31,7 @@ export const registerInstrumentCommand = (program: Command): Command => {
     .option("--outDir <dir>", "Output directory for instrumented code", ".instrumented")
     .option("--include <pattern...>", "Glob patterns to include", undefined)
     .option("--exclude <pattern...>", "Glob patterns to exclude", undefined)
+    .option("--noEnv", "Disable free-variable environment capture", false)
     .option("--verbose", "Print debugging information", false)
     .action((options: CliOptions) => {
       const toolConfig = buildToolConfig(process.cwd(), options);
@@ -47,7 +48,8 @@ export const registerInstrumentCommand = (program: Command): Command => {
         outDir: toolConfig.outDir,
         include: toolConfig.include,
         exclude: toolConfig.exclude,
-        runtimeModuleSpecifier: toolConfig.runtimeModuleSpecifier
+        runtimeModuleSpecifier: toolConfig.runtimeModuleSpecifier,
+        noEnv: toolConfig.noEnv
       };
 
       const program = ts.createProgram({

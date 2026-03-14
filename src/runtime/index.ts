@@ -124,9 +124,10 @@ export const __trace = {
     argsTypes: string[],
     envTypes: string[],
     funcKind: number,
+    noCallEvent: boolean
   ): string {
     const callId = genCallId();
-    pushCall({fnId, callId}, funcKind, thisArg);
+    if (!noCallEvent) pushCall({fnId, callId}, funcKind, thisArg);
     const event: EnterEvent = {
       type: "enter",
       fnId,
@@ -148,9 +149,10 @@ export const __trace = {
     outcome: { kind: "return" | "throw"; value?: any; error?: any },
     env: any,
     outcomeTypes: string[],
-    envTypes: string[]
+    envTypes: string[],
+    noCallEvent: boolean
   ): void {
-    const childInvocations = popCall();
+    const childInvocations = noCallEvent ? [] : popCall();
     const envValue = env;
 
     const callEvent: CallEvent = {
@@ -174,7 +176,7 @@ export const __trace = {
       envTypes
     };
 
-    writeEvent(callEvent);
+    if (!noCallEvent) writeEvent(callEvent);
     writeEvent(event);
   },
   registerClass(cls: Class): void {

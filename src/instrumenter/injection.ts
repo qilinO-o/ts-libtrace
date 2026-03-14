@@ -162,7 +162,8 @@ const createExitCall = (
   valueIdentifier: string,
   envExpression: ts.ObjectLiteralExpression,
   outcomeTypeNames: string[],
-  envTypeNames: string[]
+  envTypeNames: string[],
+  noCallEvent: boolean
 ): ts.Statement => {
   const outcomeProps =
     kind === "return"
@@ -185,7 +186,8 @@ const createExitCall = (
         factory.createObjectLiteralExpression(outcomeProps, true),
         envExpression,
         createStringArrayLiteral(factory, outcomeTypeNames),
-        createStringArrayLiteral(factory, envTypeNames)
+        createStringArrayLiteral(factory, envTypeNames),
+        noCallEvent ? factory.createTrue() : factory.createFalse()
       ]
     )
   );
@@ -199,7 +201,8 @@ const createEnterCall = (
   argsTypeNames: string[],
   envExpression: ts.ObjectLiteralExpression,
   envTypeNames: string[],
-  funcKind: number
+  funcKind: number,
+  noCallEvent: boolean
 ): ts.Expression => {
   return factory.createCallExpression(
     factory.createPropertyAccessExpression(factory.createIdentifier("__trace"), "enter"),
@@ -212,7 +215,8 @@ const createEnterCall = (
       factory.createStringLiteral(thisArgTypeName),
       createStringArrayLiteral(factory, argsTypeNames),
       createStringArrayLiteral(factory, envTypeNames),
-      factory.createNumericLiteral(funcKind)
+      factory.createNumericLiteral(funcKind),
+      noCallEvent ? factory.createTrue() : factory.createFalse()
     ]
   );
 };
@@ -270,7 +274,8 @@ export function instrumentFunctionBody(
   factory: ts.NodeFactory,
   fnIdStruct: FunctionIdStruct,
   typeChecker: ts.TypeChecker,
-  noEnv: boolean = false
+  noEnv: boolean = false,
+  noCallEvent: boolean = false
 ): ts.FunctionLikeDeclarationBase {
   const fnIdString = functionIdToString(fnIdStruct);
   const freeVarNames = noEnv ? [] : collectFreeVariableNames(node);
@@ -327,7 +332,8 @@ export function instrumentFunctionBody(
       argsTypeNames,
       envExpression,
       envTypeNames,
-      funcKind
+      funcKind,
+      noCallEvent
     )
   );
 
@@ -381,7 +387,8 @@ export function instrumentFunctionBody(
           "__err",
           envExpression,
           outcomeTypeNames,
-          envTypeNames
+          envTypeNames,
+          noCallEvent
         ),
         factory.createThrowStatement(factory.createIdentifier("__err"))
       ],
@@ -407,7 +414,8 @@ export function instrumentFunctionBody(
                 "__ret",
                 envExpression,
                 outcomeTypeNames,
-                envTypeNames
+                envTypeNames,
+                noCallEvent
               )
             ],
             true

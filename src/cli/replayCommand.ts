@@ -10,10 +10,11 @@ export const registerReplayCommand = (program: Command): Command => {
     .option("--outDir <dir>", "Output directory for replay sources", "")
     .option("--as", "Use recorded type names in codegen", false)
     .option("--ut", "Generate unittest-like replay code", false)
-    .action((traceFile: string, options: { outDir?: string; as?: boolean; ut?: boolean }) => {
+    .option("--noCallEvent", "Disable call event usage", false)
+    .action((traceFile: string, options: { outDir?: string; as?: boolean; ut?: boolean; noCallEvent?: boolean }) => {
       const absTraceFile = path.resolve(traceFile);
       const outDir = options.outDir ? path.resolve(options.outDir) : path.dirname(absTraceFile);
 
-      runReplay(absTraceFile, outDir, Boolean(options.as), Boolean(options.ut));
+      runReplay(absTraceFile, outDir, Boolean(options.as), Boolean(options.ut), Boolean(options.noCallEvent));
     });
 };

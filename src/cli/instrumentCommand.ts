@@ -32,6 +32,7 @@ export const registerInstrumentCommand = (program: Command): Command => {
     .option("--include <pattern...>", "Glob patterns to include", undefined)
     .option("--exclude <pattern...>", "Glob patterns to exclude", undefined)
     .option("--noEnv", "Disable free-variable environment capture", false)
+    .option("--noCallEvent", "Disable call event capture", false)
     .option("--verbose", "Print debugging information", false)
     .action((options: CliOptions) => {
       const toolConfig = buildToolConfig(process.cwd(), options);
@@ -49,7 +50,8 @@ export const registerInstrumentCommand = (program: Command): Command => {
         include: toolConfig.include,
         exclude: toolConfig.exclude,
         runtimeModuleSpecifier: toolConfig.runtimeModuleSpecifier,
-        noEnv: toolConfig.noEnv
+        noEnv: toolConfig.noEnv,
+        noCallEvent: options.noCallEvent ?? false,
       };
 
       const program = ts.createProgram({

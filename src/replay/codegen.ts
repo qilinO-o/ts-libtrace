@@ -545,6 +545,85 @@ export function generateUnitTestSource(
   return lines.join("\n");
 }
 
+export function generateUnitTestSourceNoCallEvent(
+  triple: CallTriple,
+  useTypeNames = false,
+  inferTypedTriple: CallTriple | undefined,
+): string {
+  const enter = triple.enter;
+  const exit = triple.exit;
+  const fnId = enter?.fnId;
+  const callId = enter?.callId;
+  if (fnId === undefined || callId === undefined) {
+    throw Error("Error: replay with bad CallTriple");
+  }
+  
+  const { className, fnName } = extractFnInfo(fnId);
+  if (className === undefined || fnName === undefined) {
+    throw Error("Error: replay with bad fnId");
+  }
+
+  // 1 for functions, 2 for methods, 3 for constructors
+  const funcKind = (className === "-") ? 1 : (fnName === "constructor" ? 3 : 2);
+
+  if (inferTypedTriple === undefined) inferTypedTriple = triple;
+
+  const lines: string[] = [];
+
+  const args = Array.isArray(enter?.args) ? enter?.args : enter?.args ? [enter.args] : [];
+  const thisArg = enter?.thisArg ?? null;
+  const argTypes = useTypeNames ? inferTypedTriple.enter?.argsTypes : undefined;
+  const thisArgTypeName = useTypeNames ? normalizeTypeName(inferTypedTriple.enter?.thisArgType) : undefined;
+  const outcomeTypes = useTypeNames ? inferTypedTriple.exit?.outcomeTypes : undefined;
+  const returnTypeName = useTypeNames ? normalizeTypeName(outcomeTypes?.[0]) : undefined;
+
+
+  // replay core section
+  lines.push(`describe("Test ${className}.${fnName} #${callId}", () => {`);
+  lines.push(emitAnnotation(2, "args"));
+  args.forEach((arg, idx) => {
+    const argType = useTypeNames ? getIndexedTypeName(argTypes, idx) ?? "unknown" : undefined;
+    lines.push(emitParsedBinding(2, `arg${idx}`, arg, false, argType));
+  });
+
+  const argList = args.map((_, idx) => `arg${idx}`).join(", ");
+
+  let callExpr = `${fnName}(${argList})`;
+  if (funcKind === 2) {
+    lines.push(emitParsedBinding(2, "thisObj", thisArg, true, thisArgTypeName));
+    callExpr = `thisObj.${fnName}(${argList})`;
+  }
+
+  if (funcKind === 3) {
+    callExpr = `new ${className}(${argList})`;
+  }
+
+  // return section
+  const outcome = exit?.outcome;
+  if (outcome?.kind === "throw") {
+    if (useTypeNames) {
+      lines.push(emitBinding(2, "threw", "false", true, "boolean"));
+    } else {
+      lines.push(emitBinding(2, "threw", "false", true, undefined));
+    }
+    lines.push(`  try {`);
+    lines.push(`    ${callExpr};`);
+    lines.push(`  } catch (_e) {`);
+    lines.push(`    threw = true;`);
+    lines.push(`  }`);
+    lines.push(`  if (!threw) throw new Error("Should throw an Error, but not");`);
+  } else if (outcome?.kind === "return" && outcomeTypes?.at(0) !== "void") {
+    lines.push(`  expect(JSON.stringify(${callExpr}), '${toJsonString(args)}').toBe('${toJsonString(outcome.value, returnTypeName)}', "output");`);
+  } else {
+    lines.push(`  ${callExpr};`);
+  }
+
+  // end of replay section
+  lines.push(`});`);
+
+  return lines.join("\n");
+}
+
 export function combineUnitTests(
   describes: {id: number, des: string}[],
   fnId: string,

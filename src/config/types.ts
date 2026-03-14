@@ -6,6 +6,7 @@ export interface InstrumenterOptions {
   exclude?: string[];
   runtimeModuleSpecifier?: string;
   noEnv?: boolean;
+  noCallEvent?: boolean;
 }
 
 export interface CliOptions {
@@ -15,6 +16,7 @@ export interface CliOptions {
   include?: string[];
   exclude?: string[];
   noEnv?: boolean;
+  noCallEvent?: boolean;
 }
 
 export interface ToolConfig extends InstrumenterOptions {

@@ -308,7 +308,7 @@ const inferNumberKind = (samples: number[]): NumberKind => {
   }
 
   if (hasFloat) {
-    return needsF64 ? "f64" : "f32";
+    return needsF64 ? "f64" : "f64";
   }
   return needsI64 ? "i64" : "i32";
 };

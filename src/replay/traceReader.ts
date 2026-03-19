@@ -41,6 +41,25 @@ const ensureClassRegistered = (name: string): Class => {
   return cls;
 };
 
+function rewriteBufferMetaToUint8Array(meta: any): void {
+  if (!meta || typeof meta !== 'object') return;
+
+  for (const key of Object.keys(meta)) {
+    const value = meta[key];
+
+    if (
+      Array.isArray(value) &&
+      value[0] === 'typed-array' &&
+      value[1] === 'Buffer'
+    ) {
+      value[1] = 'Uint8Array';
+      continue;
+    }
+
+    rewriteBufferMetaToUint8Array(value);
+  }
+}
+
 export const parseTraceLine = (line: string): TraceEvent => {
   try {
     return superjson.parse(line) as TraceEvent;
@@ -51,12 +70,13 @@ export const parseTraceLine = (line: string): TraceEvent => {
     } catch {
       throw error;
     }
+    rewriteBufferMetaToUint8Array(parsed.meta?.values);
 
     const classNames = new Set<string>();
     collectClassNames(parsed.meta?.values, classNames);
-    if (classNames.size === 0) {
-      throw error;
-    }
+    // if (classNames.size === 0) {
+    //   throw error;
+    // }
     classNames.forEach((name) => ensureClassRegistered(name));
     return superjson.deserialize(parsed as any) as TraceEvent;
   }

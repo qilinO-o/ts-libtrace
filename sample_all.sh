@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# usage: ./replay_all.sh /path/to/tracesDir
+# usage: ./sample_all.sh /path/to/tracesDir
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 <tracesDir>" >&2
   exit 1
@@ -16,13 +16,10 @@ fi
 
 tracesDir="$(cd "$tracesDir" && pwd)"
 
-outDir="$tracesDir/tests"
-mkdir -p "$outDir"
-
 # only top-level file: -maxdepth 1
 find "$tracesDir" -maxdepth 1 -type f -print0 | while IFS= read -r -d '' filePath; do
-  echo "Replaying: $filePath"
-  node ./dist/bin.js replay --as --ut --noCallEvent "$filePath" --outDir "$outDir"
+  echo "Sampling: $filePath"
+  python3 ./sample_jsonl.py $filePath --sample-size 4 --short-threshold 500 --seed 42
 done
 
-echo "Done. Output in: $outDir"
+echo "Done."
